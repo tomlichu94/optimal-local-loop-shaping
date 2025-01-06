@@ -1,5 +1,5 @@
-% clc
-% close all
+clc
+close all
 % clear all
 %% model parameters
 % DC motor from MinSegMotor
@@ -7,16 +7,17 @@
 % input is 3.9V with a sin wave at 8 Hz.
 % noise is introduced into the "clean" measured data
 % Fast sampling here defined at 250 Hz, slow sampling at 50 Hz
-% add this to the path C:\Users\tpjch\OneDrive\Documents\MATLAB\RASPlib
+
 Fs = 500;
 T_fs = 1/Fs;
+T_fin = 10;
 a_g = 0.9;
 L_t = 50;
 T_ss = T_fs*L_t;
 f_d = 8;
 % [w_k_IIR B_para] = W_coeff_IIR(L_t,f_d,a_g,T_fs);
 [w_k] = W_coeff_FIR(L_t,f_d,T_fs);
-return
+
 %% exporting data
 close all
 y_encoder = squeeze(double(out_encoder.signals.values));
@@ -35,7 +36,6 @@ xlim([3 5])
 legend('Encoder','Reconstructed - FIR','Slow-Sampled')
 
 %% from spiral servo writing in HDD paper
-close all
 z = tf('z',T_fs);
 num = [1 2 -1];
 den = [0 4 0];
