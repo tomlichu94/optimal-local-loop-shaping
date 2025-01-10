@@ -7,3 +7,4 @@
 % clc
 addpath('src','include','examples','blocks','Multirate Sampling','BalanceApp')
 % cd CompileFolder % move to CompileFolder on start (optional)
+addpath('C:\Users\tpjch\OneDrive\Documents\MATLAB\RASPlib')

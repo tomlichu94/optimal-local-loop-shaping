@@ -5,7 +5,7 @@ clc
 % run this master file to get SID and signal reconstruction using multirate
 % FIR signal estimation.
 %% SID
-addpath('Multirate Sampling/Data for Signal Reconstruction/PRBS')
+addpath('C:\Users\tpjch\OneDrive\Documents\MATLAB\RASPlib\Multirate Sampling/Data for Signal Reconstruction/PRBS')
 load sys_ID_data.mat;
 T_fs = 1/500; % sampled time
 F_fs = 1/T_fs;
@@ -21,7 +21,7 @@ t_filt = t_sim(1:end-1);
 u_filt = zero_phase_low_pass(u_sim);
 u_filt = u_filt';
 nx = 1;
-sys_post = n4sid(u_filt,y_filt,nx,'Ts',T_fs);
+sys_post = n4sid(u_sim,y_sim,nx,'Ts',T_fs);
 A = sys_post.A;
 B = sys_post.B;
 C = sys_post.C;
