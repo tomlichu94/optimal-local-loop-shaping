@@ -1,0 +1,75 @@
+%implements "chartSource" "C"
+%function ChartConfig(block, system) void
+  %createrecord chartConfiguration { ...
+          executeAtInitialization  0 ...
+  }
+  %return chartConfiguration
+%endfunction
+%function ChartDataMap(block, system) void
+  %createrecord ChartDataElements {\
+    NumChartData   8 \
+    ChartDataDefaults {\
+      RecordType   "ChartData"\
+      Dimensions   []\
+      IsTestPoint  0\
+    }\
+    ChartData {\
+      Name         "sfEvent"\
+      Description  "ActiveChartEvent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  ""\
+    }\
+    ChartData {\
+      Name         "doneDoubleBufferReInit"\
+      Description  "DoubleBufferInitCheck"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  ""\
+    }\
+    ChartData {\
+      Name         "phi"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:663:78-81"\
+      Dimensions   [1,2]\
+    }\
+    ChartData {\
+      Name         "phi_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:663:78-81"\
+    }\
+    ChartData {\
+      Name         "n_fs"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:663:82-86"\
+    }\
+    ChartData {\
+      Name         "n_fs_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:663:82-86"\
+    }\
+    ChartData {\
+      Name         "n_ss"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:663:87-91"\
+    }\
+    ChartData {\
+      Name         "n_ss_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:663:87-91"\
+    }\
+  }
+  %return ChartDataElements
+%endfunction
