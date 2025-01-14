@@ -1,0 +1,103 @@
+%implements "chartSource" "C"
+%function ChartConfig(block, system) void
+  %createrecord chartConfiguration { ...
+          executeAtInitialization  0 ...
+  }
+  %return chartConfiguration
+%endfunction
+%function ChartDataMap(block, system) void
+  %createrecord ChartDataElements {\
+    NumChartData   12 \
+    ChartDataDefaults {\
+      RecordType   "ChartData"\
+      Dimensions   []\
+      IsTestPoint  0\
+    }\
+    ChartData {\
+      Name         "sfEvent"\
+      Description  "ActiveChartEvent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  ""\
+    }\
+    ChartData {\
+      Name         "doneDoubleBufferReInit"\
+      Description  "DoubleBufferInitCheck"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  ""\
+    }\
+    ChartData {\
+      Name         "phi"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:91-94"\
+      Dimensions   [1,2]\
+    }\
+    ChartData {\
+      Name         "phi_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:91-94"\
+    }\
+    ChartData {\
+      Name         "n_fs"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:95-99"\
+    }\
+    ChartData {\
+      Name         "n_fs_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:95-99"\
+    }\
+    ChartData {\
+      Name         "n_ss"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:100-104"\
+    }\
+    ChartData {\
+      Name         "n_ss_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:100-104"\
+    }\
+    ChartData {\
+      Name         "d_IIR"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:105-110"\
+    }\
+    ChartData {\
+      Name         "d_IIR_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:105-110"\
+    }\
+    ChartData {\
+      Name         "d_IIR_idx"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:111-120"\
+    }\
+    ChartData {\
+      Name         "d_IIR_idx_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:628:111-120"\
+    }\
+  }
+  %return ChartDataElements
+%endfunction

@@ -4,7 +4,7 @@
 % 		[fileparts(mfilename('fullpath')) '\RASPlib\examples'],...
 % 		[fileparts(mfilename('fullpath')) '\RASPlib\blocks'])
    
-% clc
-addpath('src','include','examples','blocks','Multirate Sampling','BalanceApp')
+clc
 % cd CompileFolder % move to CompileFolder on start (optional)
 addpath('C:\Users\tpjch\OneDrive\Documents\MATLAB\RASPlib')
+addpath('src','include','examples','blocks','Multirate Sampling','BalanceApp')
