@@ -131,7 +131,7 @@ legend('Continuous','Fast Sampled','Estimated')
 
 f = figure();
 f.Position = [60 60 800 400]; 
-plot(d_fs_time,d_est,'Linewidth',1)
+plot(dc_time,dc,'Linewidth',1)
 hold on
 s = stairs(d_fs_time,d_fs);
 s.LineWidth = 1;
