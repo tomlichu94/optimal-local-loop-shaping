@@ -1,6 +1,6 @@
 clc
 close all
-% clear all
+clear all
 %% model parameters
 % DC motor from MinSegMotor
 % sampled at 250 Hz
@@ -8,59 +8,59 @@ close all
 % noise is introduced into the "clean" measured data
 % Fast sampling here defined at 250 Hz, slow sampling at 50 Hz
 
-Fs = 500;
+Fs = 100;
 T_fs = 1/Fs;
 T_fin = 10;
 a_g = 0.9;
-L_t = 50;
+L_t = 10;
 T_ss = T_fs*L_t;
 f_d = 8;
-% [w_k_IIR B_para] = W_coeff_IIR(L_t,f_d,a_g,T_fs);
-[w_k] = W_coeff_FIR(L_t,f_d,T_fs);
+f_in = 8;
+[w_k_iir B_para] = W_coeff_IIR(L_t,f_d,a_g,T_fs);
+[w_k_fir] = W_coeff_FIR(L_t,f_d,T_fs);
 
-%% exporting data
+%% run hardware, then export the data exporting data
 close all
-y_encoder = squeeze(double(out_encoder.signals.values));
+y_encoder = squeeze(out_encoder.signals.values);
 t_encoder = out_encoder.time;
-y_w_FIR = out_W_FIR.signals.values;
-t_w = out_W_FIR.time;
-u_w_FIR = squeeze(in_W_FIR.signals.values);
-t_u = squeeze(in_W_FIR.time);
-
+y_w = out_W.signals.values;
+t_w = out_W.time;
+u_w_FIR = squeeze(in_W.signals.values);
+t_u = squeeze(in_W.time);
 figure
 stairs(t_encoder,y_encoder)
 hold on
-stairs(t_w,y_w_FIR)
-stairs(t_u,u_w_FIR)
+stairs(t_w,y_w(:,1))
+stairs(t_w,y_w(:,2))
 xlim([3 5])
-legend('Encoder','Reconstructed - FIR','Slow-Sampled')
+legend('Encoder','FIR','IIR')
 
-%% from spiral servo writing in HDD paper
-z = tf('z',T_fs);
-num = [1 2 -1];
-den = [0 4 0];
-G_zpet = tf(num,den,T_fs);
-
-figure
-bode(G_zpet)
-legend('G_zpet')
+% %% from spiral servo writing in HDD paper
+% z = tf('z',T_fs);
+% num = [1 2 -1];
+% den = [0 4 0];
+% G_zpet = tf(num,den,T_fs);
 % 
-% y_zpet = lsim()
-n_enc = height(y_encoder);
-y_filt(1) = y_encoder(1);
-for i = 2:(n_enc-1)
-    y_filt(i) = 0.25*(y_encoder(i+1)+2*y_encoder(i)-y_encoder(i-1));
-end
-y_filt = y_filt';
-t_filt = t_encoder(1:end-1);
-figure
-stairs(t_encoder,y_encoder)
-hold on
-stairs(t_filt,y_filt)
-legend('Encoder','Low-Pass')
-
-y_encoder_norm = y_filt-mean(y_filt);
-
-figure
-stairs(t_filt,y_encoder_norm)
-legend('Zerod Encoder')
+% figure
+% bode(G_zpet)
+% legend('G_zpet')
+% % 
+% % y_zpet = lsim()
+% n_enc = height(y_encoder);
+% y_filt(1) = y_encoder(1);
+% for i = 2:(n_enc-1)
+%     y_filt(i) = 0.25*(y_encoder(i+1)+2*y_encoder(i)-y_encoder(i-1));
+% end
+% y_filt = y_filt';
+% t_filt = t_encoder(1:end-1);
+% figure
+% stairs(t_encoder,y_encoder)
+% hold on
+% stairs(t_filt,y_filt)
+% legend('Encoder','Low-Pass')
+% 
+% y_encoder_norm = y_filt-mean(y_filt);
+% 
+% figure
+% stairs(t_filt,y_encoder_norm)
+% legend('Zerod Encoder')

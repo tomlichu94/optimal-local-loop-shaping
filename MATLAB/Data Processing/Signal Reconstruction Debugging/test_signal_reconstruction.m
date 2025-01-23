@@ -1,0 +1,161 @@
+clear all
+close all
+clc
+%%%%%%%%%% signal reconstruction for multiple disturbances in simulink
+m_d = 1; % define number of disturbances
+L = 4; % scale of the slow sampling, T_ss = L*T_fs
+batches = 100; % number of slow sampled measurements
+
+T_fs = 1/50; % sampled time
+T_ss = T_fs*L; % slow sampling time
+f_nyq = 1/(2*T_ss); % Nyquist frequency
+% f_d = f_nyq*(1+rand(1,m_d)); % disturbances beyond Nyquist
+% A_d = 0.5+2*rand(1,m_d); % amplitudes
+% phi_off = rand(1,m_d)*pi; % random phase offsets up to pi
+f_d = 8;
+A_d = 1.5;
+phi_off = 0;
+
+%% disturbance generation %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+end_time = batches*L*T_fs;
+d_fs_time = 0:T_fs:end_time;
+d_ss_time = 0:T_ss:end_time;
+dc_time = 0:T_fs/100:end_time;
+[dc,d_fs,d_ss] = disturb_gen(f_d, A_d, dc_time, d_fs_time, d_ss_time,phi_off);
+d_ss = awgn(d_ss,5);
+d_zoh = zeros(size(d_fs));
+for i = 1:length(d_ss)-1
+    d_zoh((L*(i-1)+1):L*i) = d_ss(i);
+end
+
+%% signal reconstruction %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+a_g = 0.9;
+[w_k_IIR Bpara] = W_coeff_IIR(L,f_d,a_g,T_fs);
+[w_k] = W_coeff_FIR(L,f_d,T_fs);
+d_est_FIR = reconst_signal_fir(w_k,d_ss,batches,L);
+d_est_IIR = reconst_signal_iir(w_k_IIR,Bpara,d_ss,batches,L);
+
+%% test function debug
+% function d_est = w_iir_debug(w_k, B_para, d_ss, L)
+    % debugging function
+    % Keeps data of variables
+    % persistent phi n_fs n_ss d_IIR d_IIR_idx;
+    n_w = size(w_k, 1); % n_w = 2m disturbances (index starts at 0,1,...,2m-1)
+
+    % Assigning initial values
+    % if isempty(phi)
+        % phi = zeros(1, n_w, 'like', d_ss); % Preallocate phi using the same type as d_ss
+        phi = zeros(1,n_w);
+    % end
+    % if isempty(n_fs)
+        n_fs = 0; % Fast sampling count
+    % end
+    % if isempty(n_ss)
+        n_ss = 0; % Slow sampling count
+    % end
+    % if isempty(d_IIR)
+        % Use a smaller buffer size, such as storing only required history
+        % max_buffer_size = min(2 * n_w * L, 32768); % Limit to 32,768 or less
+        max_buffer_size = n_w*L+1;
+        % d_IIR = zeros(1, max_buffer_size, 'like', d_ss); % Circular buffer
+        d_IIR = zeros(1,max_buffer_size);
+    % end
+    d_est = zeros(size(d_fs)); % for debug code (this would be the output d_est for the function)
+    buffer_indices = 2:L:(n_w*L-2);
+    %%
+for i = 1:length(d_fs)
+    % Increment fast sampling count
+    n_fs = n_fs + 1;
+
+    % Update slow sampling count when required
+    if mod((n_fs - 1), L) == 0
+        n_ss = n_ss + 1; % Number of slow samples
+    end
+
+    % Calculate the kth intersample point (k = 1,...,L-1)
+    k = n_fs - (n_ss - 1) * L - 1;
+%%
+    % Case 1: n_ss < n_w (not enough data points for FIR)
+    if n_ss < n_w
+        if k == 0
+            phi = [d_ss(n_ss), phi(1:end-1)]; % Shift and update phi
+            d_est(n_fs) = d_ss(n_ss); % Fast and slow align
+        else
+            d_est(n_fs) = 0; % Not enough data for intersample estimation
+        end
+    % Case 2: n_ss <= n_w (enough data points for FIR)
+    elseif n_ss >= n_w && n_ss< n_w+1
+        if k == 0
+            phi = [d_ss(n_ss), phi(1:end-1)];
+            d_est(n_fs) = d_ss(n_ss);
+        else
+            d_est(n_fs) = phi * w_k(:, k); % FIR reconstruction
+        end
+    % Case 3: n_ss >= n_w + 1 (enough data points for IIR)
+    else
+        if k == 0
+            phi = [d_ss(n_ss), phi(1:end-1)];
+            d_est(n_fs) = d_ss(n_ss);
+        else
+            d_iir_temp = flip(d_IIR);
+            d_est(n_fs) = phi * w_k_IIR(:, k) - ...
+                d_iir_temp(buffer_indices) * flip(Bpara(2:end))';
+        end
+    end
+    % Update the circular buffer
+    d_IIR = [d_est(n_fs), d_IIR(1:end-1)]; %shifts buffer index by one
+end
+%%
+figure
+plot(d_fs_time,d_fs,d_fs_time,d_est)
+legend('Fast sampled','IIR')
+% ylim([-2 2])
+
+%% plotting
+f = figure();
+f.Position = [60 60 800 400]; 
+plot(dc_time,dc,'Linewidth',1)
+hold on
+s = stairs(d_fs_time,d_fs);
+s.LineWidth = 1;
+s.Marker = 'o';
+s.Color = [0.9290 0.6940 0.1250];
+s = stairs(d_fs_time,d_est_FIR);
+s.LineWidth = 1;
+s.LineStyle = '--';
+s.Marker = 'x';
+s.Color = [1 0 0];
+ylim([-2 2])
+hold off
+legend('Continuous','Fast Sampled','Estimated')
+
+f = figure();
+f.Position = [60 60 800 400]; 
+plot(dc_time,dc,'Linewidth',1)
+hold on
+s = stairs(d_fs_time,d_fs);
+s.LineWidth = 1;
+s.Marker = 'o';
+s.Color = [0.9290 0.6940 0.1250];
+% s = stairs(d_fs_time,d_est_FIR);
+% s.LineWidth = 1;
+% s.LineStyle = '--';
+% s.Marker = 'x';
+% s.Color = [1 0 0];
+s = stairs(d_fs_time,d_est);
+s.LineWidth = 1;
+s.LineStyle = '--';
+s.Marker = 'x';
+s.Color = [1 0 0];
+s = stairs(d_fs_time,d_est_IIR);
+s.LineWidth = 1;
+s.LineStyle = '--';
+s.Marker = '+';
+s.Color = [0 1 0];
+hold off
+legend('Continuous','Fast Sampled','IIR - Function','IIR')
+xlim([5 5.2])
+rms_FIR = rms(d_fs-d_est_FIR);
+rms_IIR = rms(d_fs-d_est_IIR);
+fprintf('FIR predictor RMS: %.3f\n',rms_FIR)
+fprintf('IIR predictor RMS: %.3f\n',rms_IIR)
