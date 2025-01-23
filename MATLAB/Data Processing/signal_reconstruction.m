@@ -15,17 +15,18 @@ a_g = 0.9;
 L_t = 50;
 T_ss = T_fs*L_t;
 f_d = 8;
+f_in = 8;
 % [w_k_IIR B_para] = W_coeff_IIR(L_t,f_d,a_g,T_fs);
 [w_k] = W_coeff_FIR(L_t,f_d,T_fs);
 
 %% exporting data
 close all
-y_encoder = squeeze(double(out_encoder.signals.values));
+y_encoder = squeeze(out_encoder.signals.values);
 t_encoder = out_encoder.time;
-y_w_FIR = out_W_FIR.signals.values;
-t_w = out_W_FIR.time;
-u_w_FIR = squeeze(in_W_FIR.signals.values);
-t_u = squeeze(in_W_FIR.time);
+y_w_FIR = out_W.signals.values;
+t_w = out_W.time;
+u_w_FIR = squeeze(in_W.signals.values);
+t_u = squeeze(in_W.time);
 
 figure
 stairs(t_encoder,y_encoder)
