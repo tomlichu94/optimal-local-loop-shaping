@@ -27,40 +27,41 @@ y_w = out_W.signals.values;
 t_w = out_W.time;
 u_w_FIR = squeeze(in_W.signals.values);
 t_u = squeeze(in_W.time);
+%%
 figure
 stairs(t_encoder,y_encoder)
 hold on
-stairs(t_w,y_w(:,1))
-stairs(t_w,y_w(:,2))
+stairs(t_w,y_w_FIR)
+stairs(t_u,u_w_FIR)
 xlim([3 5])
-legend('Encoder','FIR','IIR')
+legend('Encoder','Reconstructed - FIR','Slow-Sampled')
 
-% %% from spiral servo writing in HDD paper
-% z = tf('z',T_fs);
-% num = [1 2 -1];
-% den = [0 4 0];
-% G_zpet = tf(num,den,T_fs);
+%% from spiral servo writing in HDD paper
+z = tf('z',T_fs);
+num = [1 2 -1];
+den = [0 4 0];
+G_zpet = tf(num,den,T_fs);
+
+figure
+bode(G_zpet)
+legend('G_zpet')
 % 
-% figure
-% bode(G_zpet)
-% legend('G_zpet')
-% % 
-% % y_zpet = lsim()
-% n_enc = height(y_encoder);
-% y_filt(1) = y_encoder(1);
-% for i = 2:(n_enc-1)
-%     y_filt(i) = 0.25*(y_encoder(i+1)+2*y_encoder(i)-y_encoder(i-1));
-% end
-% y_filt = y_filt';
-% t_filt = t_encoder(1:end-1);
-% figure
-% stairs(t_encoder,y_encoder)
-% hold on
-% stairs(t_filt,y_filt)
-% legend('Encoder','Low-Pass')
-% 
-% y_encoder_norm = y_filt-mean(y_filt);
-% 
-% figure
-% stairs(t_filt,y_encoder_norm)
-% legend('Zerod Encoder')
+% y_zpet = lsim()
+n_enc = height(y_encoder);
+y_filt(1) = y_encoder(1);
+for i = 2:(n_enc-1)
+    y_filt(i) = 0.25*(y_encoder(i+1)+2*y_encoder(i)-y_encoder(i-1));
+end
+y_filt = y_filt';
+t_filt = t_encoder(1:end-1);
+figure
+stairs(t_encoder,y_encoder)
+hold on
+stairs(t_filt,y_filt)
+legend('Encoder','Low-Pass')
+
+y_encoder_norm = y_filt-mean(y_filt);
+
+figure
+stairs(t_filt,y_encoder_norm)
+legend('Zerod Encoder')

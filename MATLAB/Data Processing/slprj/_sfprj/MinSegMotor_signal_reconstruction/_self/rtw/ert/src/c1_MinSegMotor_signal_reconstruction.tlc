@@ -1,0 +1,130 @@
+%implements "chartSource" "C"
+%function ChartConfig(block, system) void
+  %createrecord chartConfiguration { ...
+          executeAtInitialization  0 ...
+  }
+  %return chartConfiguration
+%endfunction
+%function ChartDataMap(block, system) void
+  %createrecord ChartDataElements {\
+    NumChartData   16 \
+    ChartDataDefaults {\
+      RecordType   "ChartData"\
+      Dimensions   []\
+      IsTestPoint  0\
+    }\
+    ChartData {\
+      Name         "sfEvent"\
+      Description  "ActiveChartEvent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  ""\
+    }\
+    ChartData {\
+      Name         "doneDoubleBufferReInit"\
+      Description  "DoubleBufferInitCheck"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  ""\
+    }\
+    ChartData {\
+      Name         "n_w"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:111-114"\
+    }\
+    ChartData {\
+      Name         "n_w_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:111-114"\
+    }\
+    ChartData {\
+      Name         "phi"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:115-118"\
+    }\
+    ChartData {\
+      Name         "phi_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:115-118"\
+    }\
+    ChartData {\
+      Name         "n_fs"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:119-123"\
+    }\
+    ChartData {\
+      Name         "n_fs_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:119-123"\
+    }\
+    ChartData {\
+      Name         "n_ss"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:124-128"\
+    }\
+    ChartData {\
+      Name         "n_ss_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:124-128"\
+    }\
+    ChartData {\
+      Name         "d_buff"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:129-135"\
+    }\
+    ChartData {\
+      Name         "d_buff_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:129-135"\
+    }\
+    ChartData {\
+      Name         "max_buffer_size"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:136-151"\
+    }\
+    ChartData {\
+      Name         "max_buffer_size_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:136-151"\
+    }\
+    ChartData {\
+      Name         "buffer_indices"\
+      Description  "EmlPersistent"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:152-166"\
+    }\
+    ChartData {\
+      Name         "buffer_indices_not_empty"\
+      Description  "EmlPersistentSentinel"\
+      SFName       ""\
+      Path         ""\
+      SrcLocation  "MinSegMotor_signal_reconstruction:677:152-166"\
+    }\
+  }
+  %return ChartDataElements
+%endfunction
