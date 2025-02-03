@@ -21,7 +21,7 @@ f_in = 8;
 
 %% run hardware, then export the data exporting data
 addpath('Experimental Runs')
-load run_4_phase_correction.mat
+load run_7.mat
 y_encoder = squeeze(out_encoder.signals.values)';
 t_encoder = out_encoder.time';
 d_ss = squeeze(in_W.signals.values)';
