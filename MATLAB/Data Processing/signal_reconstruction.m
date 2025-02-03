@@ -20,26 +20,56 @@ f_in = 8;
 [w_k_fir] = W_coeff_FIR(L_t,f_d,T_fs);
 
 %% run hardware, then export the data exporting data
+close all
 addpath('Experimental Runs')
-load run_7.mat
+load run_8.mat
 y_encoder = squeeze(out_encoder.signals.values)';
 t_encoder = out_encoder.time';
+w_in = squeeze(in_W.signals.values)';
+t_in = squeeze(in_W.time);
 d_ss = squeeze(in_W.signals.values)';
 t_ss = in_W.time';
 y_w = out_W.signals.values';
 t_w = out_W.time';
 u_w_FIR = squeeze(in_W.signals.values)';
 t_u = squeeze(in_W.time)';
-figure
-stairs(t_encoder,y_encoder)
-hold on
-stairs(t_w,y_w(1,:))
-stairs(t_w,y_w(2,:))
-xlim([3 5])
-legend('Encoder','FIR','IIR')
-hold off
 
-%% test with built-in function
+figure
+s = stairs(t_encoder,y_encoder);
+s.Color = [0 0 0];
+s.LineWidth = 1.3;
+hold on
+s = stairs(t_in,w_in);
+s.LineWidth = 1.3;
+s.Color = [0 0 1];
+s.Marker = '*';
+
+s = stairs(t_w,y_w(1,:));
+s.LineWidth = 1.4;
+s.LineStyle = '-.';
+s.Marker = 'x';
+s.MarkerSize = 8;
+s.Color = [0.9290 0.6940 0.1250];
+
+s = stairs(t_w,y_w(2,:));
+s.LineWidth = 1.4;
+s.Marker = 'o';
+s.MarkerSize = 7;
+s.Color = [1 0 0];
+s.LineStyle = ':';
+legend('Fast-Sampled Signal','Aliased Signal','FIR MMP','IIR MMP')
+hold off
+ylabel('Enconder Count')
+xlabel('Time (sec)')
+xlim([3.45 3.75])
+ylim([-500 330])
+
+% find the rms error after 1 second
+idx_err = 101;
+y_err = abs(y_encoder(idx_err:end)-y_w(:,idx_err:end));
+y_rms = rms(y_err,2);
+
+%% test with built-in function, built-in function is two steps ahead
 close all
 addpath('Functions')
 [dest_fir dest_iir] = signal_recovery(w_k_fir,w_k_iir,B_para,L_t,d_ss);
