@@ -7,6 +7,7 @@ clear all
 % input is 3.9V with a sin wave at 8 Hz.
 % noise is introduced into the "clean" measured data
 % Fast sampling here defined at 250 Hz, slow sampling at 50 Hz
+addpath('Functions')
 
 Fs = 100;
 T_fs = 1/Fs;
@@ -36,12 +37,12 @@ t_u = squeeze(in_W.time)';
 
 figure
 s = stairs(t_encoder,y_encoder);
-s.Color = [0 0 0];
+s.Color = [0.4 0.4 0.4];
 s.LineWidth = 1.3;
 hold on
 s = stairs(t_in,w_in);
 s.LineWidth = 1.3;
-s.Color = [0 0 1];
+s.Color = [0 0 0.65];
 s.Marker = '*';
 
 s = stairs(t_w,y_w(1,:));
@@ -57,7 +58,7 @@ s.Marker = 'o';
 s.MarkerSize = 7;
 s.Color = [1 0 0];
 s.LineStyle = ':';
-legend('Fast-Sampled Signal','Aliased Signal','FIR MMP','IIR MMP')
+legend('Encoder Reading','Sampled Signal','FIR MMP','IIR MMP')
 hold off
 ylabel('Enconder Count')
 xlabel('Time (sec)')
@@ -70,8 +71,6 @@ y_err = abs(y_encoder(idx_err:end)-y_w(:,idx_err:end));
 y_rms = rms(y_err,2);
 
 %% test with built-in function, built-in function is two steps ahead
-close all
-addpath('Functions')
 [dest_fir dest_iir] = signal_recovery(w_k_fir,w_k_iir,B_para,L_t,d_ss);
 
 figure
