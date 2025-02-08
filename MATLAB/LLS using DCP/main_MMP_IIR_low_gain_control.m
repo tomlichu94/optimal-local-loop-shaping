@@ -25,14 +25,14 @@ z = tf('z',Tu); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-L_t = 4; % sampling rate multilpier
+L_t = 3; % sampling rate multilpier
 k_t = L_t - 1;
 Ts = Tu*L_t; % slow sampling time
 batches = 220; % the number of cycles 
-max_order = 60; % max filter order
+max_order = 6; % max filter order
 max_amp = 1; % max disturb amplitude
 
-PQ_max = 0.4; % max value of PQ for the quadratic constraint
+PQ_max = 5; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
 f_stop = 400; % SOCP stop constraint past this frequency
 a_g_IIR = 0.90; % predictor alpha
@@ -50,7 +50,7 @@ Ts_CT_approx = Ts/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 4;
+% m_d = 3;
 % tempW = zeros(1,m_d);
 % for i = 1:(m_d) 
 %     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
@@ -59,9 +59,10 @@ m_d = 4;
 % general test results
 % L = 3;
 % tempW = [1.337 1.739 2.312 2.618]; % okay, bad robustness
-tempW = [1.32 1.67 1.93 2.18]; % good run
+% tempW = [1.32 1.67 1.93 2.18]; % good run
 % tempW = [1.4482 1.7411 2.0070 2.8114]; % okay, mid robustness
-L_t = 4;
+tempW = [0.23 0.56 0.8];
+% L_t = 3;
 % tempW = [1.7178 2.0072 2.9787 3.5073];
 
 m_d = size(tempW,2); % number of disturbances
