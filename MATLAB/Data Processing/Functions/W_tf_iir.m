@@ -1,4 +1,4 @@
-function [W_num W_den] = W_tf_iir(w_k,B_para)
+function [W_num W_den] = w_tf_iir(w_k,B_para)
 % transfer function for W_TF = d[nL+k]/d[nL], based on the fast sampling
 m_d = height(w_k)/2;
 k_all = width(w_k);
