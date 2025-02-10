@@ -26,74 +26,74 @@ addpath('Experimental Runs')
 load run_8.mat
 y_encoder = squeeze(out_encoder.signals.values)';
 t_encoder = out_encoder.time';
-w_in = squeeze(in_W.signals.values)';
-t_in = squeeze(in_W.time);
-d_ss = squeeze(in_W.signals.values)';
-t_ss = in_W.time';
-y_w = out_W.signals.values';
-t_w = out_W.time';
-u_w_FIR = squeeze(in_W.signals.values)';
-t_u = squeeze(in_W.time)';
+t_fs = out_W.time';
+t_ss = squeeze(in_W.time)';
+d_ss = squeeze(in_W.signals.values)'; % slow sampled signal
+peak_mean_fs = mean(findpeaks(y_encoder(2:end))); % find average peak value
+peak_mean_ss = mean(findpeaks(d_ss(2:end)));
+y_norm_fs = y_encoder/peak_mean_fs;
+y_norm_ss = d_ss/peak_mean_ss;
+y_w = out_W.signals.values'/peak_mean_fs; % normalized
+
 
 figure
-s = stairs(t_encoder,y_encoder);
+s = stairs(t_encoder,y_norm_fs);
 s.Color = [0.4 0.4 0.4];
 s.LineWidth = 1.3;
 hold on
-s = stairs(t_in,w_in);
+s = stairs(t_ss,y_norm_ss);
 s.LineWidth = 1.3;
 s.Color = [0 0 0.65];
 s.Marker = '*';
 
-s = stairs(t_w,y_w(1,:));
+s = stairs(t_fs,y_w(1,:));
 s.LineWidth = 1.4;
 s.LineStyle = '-.';
 s.Marker = 'x';
 s.MarkerSize = 8;
 s.Color = [0.9290 0.6940 0.1250];
 
-s = stairs(t_w,y_w(2,:));
+s = stairs(t_fs,y_w(2,:));
 s.LineWidth = 1.4;
 s.Marker = 'o';
 s.MarkerSize = 7;
 s.Color = [1 0 0];
 s.LineStyle = ':';
-legend('Encoder Reading','Sampled Signal','FIR MMP','IIR MMP')
+legend('Fast Sampled Signal','Slow Sampled Signal','FIR MMP','IIR MMP')
 hold off
-ylabel('Enconder Count')
+ylabel('Normalized Enconder Count')
 xlabel('Time (sec)')
 xlim([3.45 3.75])
-ylim([-500 330])
+ylim([-2 1.3])
 
 % find the rms error after 1 second
 idx_err = 101;
-y_err = abs(y_encoder(idx_err:end)-y_w(:,idx_err:end));
+y_err = abs(y_norm_fs(idx_err:end)-y_w(:,idx_err:end));
 y_rms = rms(y_err,2);
 
 %% test with built-in function, built-in function is two steps ahead
-[dest_fir dest_iir] = signal_recovery(w_k_fir,w_k_iir,B_para,L_t,d_ss);
-
+[dest_fir dest_iir] = signal_recovery(w_k_fir,w_k_iir,B_para,L_t,y_norm_ss);
 figure
-stairs(t_w,y_w(1,:))
+stairs(t_fs,y_w(1,:))
 hold on
-stairs(t_w,dest_fir)
+stairs(t_fs,dest_fir)
 xlim([3 5])
 legend('Simulink FIR','MATLAB FIR')
 hold off
 
 figure
-stairs(t_w,y_w(2,:))
+stairs(t_fs,y_w(2,:))
 hold on
-stairs(t_w,dest_iir)
+stairs(t_fs,dest_iir)
 xlim([3 5])
 legend('Simulink IIR','MATLAB IIR')
 hold off
 
 figure
-stairs(t_w,y_encoder)
+stairs(t_fs,y_norm_fs)
 hold on
-stairs(t_w,dest_iir)
-stairs(t_w,y_w(2,:))
+stairs(t_fs,dest_iir)
+stairs(t_fs,y_w(2,:))
 xlim([3 5])
 legend('Simulink Enconder','MATLAB IIR','Simulink IIR')
 hold off
