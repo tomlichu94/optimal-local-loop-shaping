@@ -1,6 +1,6 @@
 clc
 close all
-clear all
+clear
 %% model parameters
 % DC motor from MinSegMotor
 % sampled at 250 Hz
