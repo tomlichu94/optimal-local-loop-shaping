@@ -41,6 +41,7 @@ for k = 1:length(a_g) % find coeff for IIR-MMP for various alpha values
 end
 
 %% plotting signal reconstruction
+close all
 % plot comparison of true encoder, noisy encoder, FIR, and IIR recovery
 x_lim = [3.45 3.75];
 y_lim = [-3 2];
@@ -73,7 +74,7 @@ xlabel('Time (sec)')
 ylabel('Normalized Encoder Count')
 hold off
 
-%% plotting RMS
+% plotting RMS
 % remove matched measurements (i.e. d_fs[nL] = d_ss[n])
 d_fs_inter = d_fs;
 d_fir_inter = d_est_fir; 
@@ -81,34 +82,38 @@ d_iir_inter = d_est_iir;
 d_fs_inter(1:L:end) = []; 
 d_fir_inter(1:L:end) = [];
 d_iir_inter(:,1:L:end) = [];
+t_inter = t_fast;
+t_inter(1:L:end) = [];
 
 % finding absolute error
-err_FIR = abs(d_fs_inter - d_fir_inter);
+% err_FIR = abs(d_fs_inter - d_fir_inter);
+err_FIR = d_fs_inter - d_fir_inter;
 err_IIR = zeros(length(a_g),length(d_iir_inter));
 for k = 1:length(a_g)
-err_IIR(k,:) = abs(d_fs_inter - d_iir_inter(k,:));
+% err_IIR(k,:) = abs(d_fs_inter - d_iir_inter(k,:));
+err_IIR(k,:) = d_fs_inter - d_iir_inter(k,:);
 end
 
 % plotting error
 figure
-s = stairs(err_FIR);
-s.LineWidth = 1.5;
+s = stairs(t_inter,err_FIR);
+s.LineWidth = 0.7;
 s.LineStyle = '-';
-s.Marker = 'x';
-s.Color = [0.9290 0.6940 0.1250];
+% s.Marker = 'x';
+% s.Color = [0.9290 0.6940 0.1250];
 hold on
-s = stairs(err_IIR(3,:));
-s.LineWidth = 1.3;
+s = stairs(t_inter,err_IIR(3,:));
+s.LineWidth = 1;
 s.Color = [1 0 0];
 s.LineStyle = ':';
-s.Marker = 'o';
+% s.Marker = 'o';
 hold off
 legend('FIR MMP','IIR MMP','Location','northeast')
 ax = gca;
 ax.FontSize= 12;
-ylabel('Absolute Error')
+ylabel('Error')
 xlabel('Time (sec)')
-ylim([0 2])
+ylim([-2 2])
 
 % spectral of error
 d_IIR_spec = specCal(d_est_iir(3,:),F_fs);
@@ -147,7 +152,7 @@ text((1:4)+0.25,rms_all+0.1,txt);
 legend('','RMS Error')
 ylabel('Error')
 
-%% bode plots
+% bode plots
 k_tot = 1:(L-1); % index of intersample points
 
 % plotting options
@@ -226,7 +231,7 @@ x_line.LabelVerticalAlignment = 'bottom';
 hold off
 legend(Legend_bode)
 xlim([0,20])
-%% plotting pzmap
+% plotting pzmap
 figure
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
