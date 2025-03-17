@@ -235,6 +235,11 @@ xlim([0,20])
 figure
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
+a=findobj(gca,'type','line')
+for i = 1:length(a)
+    set(a(i),'markersize',8)
+    set(a(i),'linewidth',1.5)
+end
 hold on
 for i = 1:length(a_g)
     [W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(i,:,:)),B_para);
@@ -245,6 +250,11 @@ for i = 1:length(a_g)
 end
 for k = 3:3:k_length
     pzmap(W_k_IIR(3,k)) % plot zeros
+    for i = 1:length(a)
+    a=findobj(gca,'type','line')
+    set(a(i),'markersize',8)
+    set(a(i),'linewidth',1.5)
+end
 end
 Legend_pz = cell(1,4);
 Legend_pz{1} = strcat('Poles (\alpha = ',num2str(a_g(3)),')');
@@ -252,5 +262,61 @@ n_leg = 2;
 for iter=3:3:k_length
   Legend_pz{n_leg}=strcat('k = ', num2str(k_tot(iter)));
   n_leg = n_leg+1;
+end
+legend(Legend_pz,'Location','Best')
+
+%%
+% figure
+% for k = 1:length(a_g) % find coeff for IIR-MMP for various alpha values
+% [wk_iir, Bpara] = w_k_iir(L,f_d,a_g(k),T_fs); % coefficients for IIR-MMP
+% [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
+% W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
+% pzmap(W_k_IIR,'k') % map of IIR-MMP poles
+% a=findobj(gca,'type','line')
+%     for i = 1:length(a)
+%         set(a(i),'markersize',8)
+%         set(a(i),'linewidth',1.5)
+%         set(a(i),'Color',color_all{k})
+%     end
+% hold on
+% end
+% Legend_pz = cell(1,3);
+% for iter=1:3
+% Legend_pz{iter} = strcat('Poles (\alpha = ',num2str(a_g(iter)),')');
+% end
+% legend(Legend_pz,'Location','Best')
+
+figure
+[wk_iir, Bpara] = w_k_iir(L,f_d,a_g(1),T_fs); % coefficients for IIR-MMP
+[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
+W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
+pzmap(W_k_IIR,'k') % map of IIR-MMP poles
+a=findobj(gca,'type','line')
+    for i = 1:length(a)
+        set(a(i),'markersize',8)
+        set(a(i),'linewidth',1.5)
+    end
+hold on
+[wk_iir, Bpara] = w_k_iir(L,f_d,a_g(2),T_fs); % coefficients for IIR-MMP
+[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
+W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
+pzmap(W_k_IIR,'b') % map of IIR-MMP poles
+a=findobj(gca,'type','line')
+    for i = 1:length(a)
+        set(a(i),'markersize',8)
+        set(a(i),'linewidth',1.5)
+    end
+[wk_iir, Bpara] = w_k_iir(L,f_d,a_g(3),T_fs); % coefficients for IIR-MMP
+[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
+W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
+pzmap(W_k_IIR,'r') % map of IIR-MMP poles
+a=findobj(gca,'type','line')
+    for i = 1:length(a)
+        set(a(i),'markersize',8)
+        set(a(i),'linewidth',1.5)
+    end
+Legend_pz = cell(1,3);
+for iter=1:3
+Legend_pz{iter} = strcat('Poles (\alpha = ',num2str(a_g(iter)),')');
 end
 legend(Legend_pz,'Location','Best')
