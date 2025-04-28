@@ -25,16 +25,16 @@ z = tf('z',Tu); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-L_t = 3; % sampling rate multilpier
+L_t = 4; % sampling rate multilpier
 k_t = L_t - 1;
 Ts = Tu*L_t; % slow sampling time
 batches = 220; % the number of cycles 
-max_order = 6; % max filter order
+max_order = 30; % max filter order
 max_amp = 1; % max disturb amplitude
 
-PQ_max = 5; % max value of PQ for the quadratic constraint
+PQ_max = 8; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 400; % SOCP stop constraint past this frequency
+f_stop = 500; % SOCP stop constraint past this frequency
 a_g_IIR = 0.90; % predictor alpha
 alpha = 0.95; % QIIR alpha
 
@@ -59,9 +59,9 @@ Ts_CT_approx = Ts/20; % approximating continuous time sys
 % general test results
 % L = 3;
 % tempW = [1.337 1.739 2.312 2.618]; % okay, bad robustness
-% tempW = [1.32 1.67 1.93 2.18]; % good run
+tempW = [1.32 1.67 1.93 2.18]; % good run
 % tempW = [1.4482 1.7411 2.0070 2.8114]; % okay, mid robustness
-tempW = [0.23 0.56 0.8];
+% tempW = [0.23 0.56 0.8];
 % L_t = 3;
 % tempW = [1.7178 2.0072 2.9787 3.5073];
 
@@ -144,18 +144,39 @@ end
 
 %% SOCP implementation
 %%%%%%%%%%%%%%%%%%%% Quad implementation for PQ %%%%%%%%%%%%%%%%%%%%%%%%%%%
-phi_val = freqresp(phi,exp(1j*w_lin(1:stop_indx)));
+phi_val = freqresp(phi,exp(1j*w_lin(1:length(w_lin))));
 phi_val = squeeze(phi_val);
 phi_r = real(phi_val);
 phi_i = -imag(phi_val);
-Pz_val = freqresp(Pz*Q0,exp(1j*w_lin(1:stop_indx)));
+Pz_val = freqresp(Pz*Q0,exp(1j*w_lin(1:length(w_lin))));
 Pz_val = squeeze(Pz_val)';
 Pz_2 = real(Pz_val).^2 + imag(Pz_val).^2;
-quad = zeros(max_order+1,max_order+1,stop_indx);
-for i = 1:stop_indx
+quad = zeros(max_order+1,max_order+1,length(w_lin));
+for i = 1:length(w_lin)
     quad(:,:,i) = Pz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
                       Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
 end
+cvx_begin
+        variables q_vec((max_order+1),1) b(length(w_lin),1)
+        beta_sum = sum(b);
+        for i = 1:length(w_lin)
+           quad_q(i) = quad_form(q_vec,quad(:,:,i));
+        end
+        minimize beta_sum
+        subject to
+            for i = 1:m_d
+               1-PQ_d(1,:,i)*q_vec == 0;
+            end            
+            for i = 1:length(w_lin)
+                quad_q(i) <= b(i)
+            end
+cvx_end
+Qcvx_num = conv(Q0_num,q_vec');
+Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
+Qcvx_quad = tf(Qcvx_num,Qcvx_den,Tu);
+Qcvx_quad = minreal(Qcvx_quad);
+PQ_cvx_quad = minreal(Pz*Qcvx_quad);
+T_cvx_quad = minreal(1-PQ_cvx_quad);
 
 %% QFIR SDP implementation
 %%%%%%%%%%%%%%%%%%%%%%%%% FIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%%
