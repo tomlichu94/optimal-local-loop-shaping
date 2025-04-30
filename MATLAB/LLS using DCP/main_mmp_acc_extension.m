@@ -102,6 +102,8 @@ Pz_sys = ss(Pz); % used in Simulink
 Q0_num = [1 -1];
 Q0_den = [1 0]; 
 Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
+% Q0_num = 1;
+% Q0_den = 1;
 %%%%% using Q0 = 1+z^-1
 % Q0_num = [1 -1];
 % Q1_num = [1 1];
@@ -319,40 +321,81 @@ PQcvx_IIR_den = conv(Pz_den,Qcvx_den);
 PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,Tu);
 T_cvx_IIR = 1 - PQcvx_IIR;
 
+%% bandpass baseline
+w_hz_d = w_d/(2*pi*Tu);
+B_bw = w_hz_d*0.2; % bandwidth
+[Q_bp Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,Tu);
+PQ_bp = minreal(Pz*Q_bp);
+T_bp = 1-PQ_bp;
+
+SimModelBase = 'main_mmp_baseline';
+[SimOutBase] = sim(SimModelBase,'StopTime','Tsim','FixedStep','simStepSize');
+d_out = SimOutBase.dist_fast.signals.values;
+y_base_fast = SimOutBase.y_fast.signals.values;
+y_base_slow = SimOutBase.y_slow.signals.values;
+t_base_fast = SimOutBase.y_fast.time;
+t_base_slow = SimOutBase.y_slow.time;
+
 %% Storing Qcvx terms
 Qcvx(1) = Qcvx_socp;
 Qcvx(2) = Qcvx_FIR;
 Qcvx(3) = Qcvx_IIR;
 
-return
 %% Simulation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-SimModel = 'main_SIM_MMP_IIR';
-[SimOut] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
-tsim_Ts = SimOut.y1b.time;
-tsim_Tu = SimOut.y1a.time;
+SimModel = 'main_mmp';
+for i = 1:3
+    Qcvx_sim = Qcvx(i);
+    [SimOut] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
+    d_out(:,i) = SimOut.dist_fast.signals.values;
+    y_fast(:,:,i) = SimOut.y_fast.signals.values;
+    y_slow(:,:,i) = SimOut.y_slow.signals.values;
+    y_mmp(:,:,i) = SimOut.mmp.signals.values;
+    t_fast = SimOut.y_fast.time;
+    t_slow = SimOut.y_slow.time;
+end
 
+%%
+% y0: Q_bp
+% y1: Q_socp
+% y2: Q_fir
+% y3: Q_iir
+d_out = d_out';
+y0_tu = y_base_fast(:,1)';
+y1_tu = y_fast(:,:,1)';
+y2_tu = y_fast(:,:,2)';
+y3_tu = y_fast(:,:,3)';
+
+y0_ts = y_base_slow(:,1)';
+y1_ts = y_slow(:,:,1)';
+y2_ts = y_slow(:,:,2)';
+y3_ts = y_slow(:,:,3)';
+
+mmp0 = y_base_fast(:,2)';
+mmp1 = y_mmp(:,:,1)';
+mmp2 = y_mmp(:,:,2)';
+mmp3 = y_mmp(:,:,3)';
+%%
 % y1: Q_FIR, W_FIR
 % y2: Q_FIR, W_IIR
 % y3: Q_IIR, W_FIR
 % y4: Q_IIR, W_IIR
-
 % 'b' denotes Ts sampling, 'a' denotes Tu sampling
-y1b = SimOut.y1b.signals.values;
-y1a = SimOut.y1a.signals.values;
-y2b = SimOut.y2b.signals.values;
-y2a = SimOut.y2a.signals.values;
-y3b = SimOut.y3b.signals.values;
-y3a = SimOut.y3a.signals.values;
-y4b = SimOut.y4b.signals.values;
-y4a = SimOut.y4a.signals.values;
-
-% MMP output
-y1c = SimOut.y1c.signals.values;
-y2c = SimOut.y2c.signals.values;
-y3c = SimOut.y3c.signals.values; 
-y4c = SimOut.y4c.signals.values; 
-d_out = SimOut.y_dist_Tu.signals.values;
+% y1b = SimOut.y1b.signals.values;
+% y1a = SimOut.y1a.signals.values;
+% y2b = SimOut.y2b.signals.values;
+% y2a = SimOut.y2a.signals.values;
+% y3b = SimOut.y3b.signals.values;
+% y3a = SimOut.y3a.signals.values;
+% y4b = SimOut.y4b.signals.values;
+% y4a = SimOut.y4a.signals.values;
+% 
+% % MMP output
+% y1c = SimOut.y1c.signals.values;
+% y2c = SimOut.y2c.signals.values;
+% y3c = SimOut.y3c.signals.values; 
+% y4c = SimOut.y4c.signals.values; 
+% d_out = SimOut.y_dist_Tu.signals.values;
 
 %% =============== Plotting bode plots ==================================
 % defining the frequency range to be plotted and axes limits
@@ -472,25 +515,31 @@ h(2).Color = [1 0 0];
 legend('Q:FIR','Q:IIR','location','southwest')
 
 % ================== Error ==========================================
-err_MMP_1 = abs(d_out-y1c);
-err_MMP_2 = abs(d_out-y2c);
-err_MMP_3 = abs(d_out-y3c);
-err_MMP_4 = abs(d_out-y4c);
-rms_y1 = rms(y1a);
-rms_y2 = rms(y2a);
-rms_y3 = rms(y3a);
-rms_y4 = rms(y4a);
+err_mmp_base = abs(d_out(1,:)-mmp0);
+err_mmp_fir(1,:) = abs(d_out(1,:)-mmp1(1,:)); % q-socp, w-fir
+err_mmp_fir(2,:) = abs(d_out(2,:)-mmp2(1,:)); % q-fir, w-fir
+err_mmp_fir(3,:) = abs(d_out(3,:)-mmp3(1,:)); % q-iir, w-fir
+err_mmp_iir(1,:) = abs(d_out(1,:)-mmp1(2,:)); % q-socp, w-iir
+err_mmp_iir(2,:) = abs(d_out(2,:)-mmp2(2,:)); % q-fir, w-iir
+err_mmp_iir(3,:) = abs(d_out(3,:)-mmp3(2,:)); % q-iir, w-iir
 
-rms_MMP_1 = rms(err_MMP_1);
-rms_MMP_2 = rms(err_MMP_2);
-rms_MMP_3 = rms(err_MMP_3);
-rms_MMP_4 = rms(err_MMP_4);
+rms_base = rms(err_mmp_base);
+rms_fir(1) = rms(err_mmp_fir(1,:));
+rms_fir(2) = rms(err_mmp_fir(2,:));
+rms_fir(3) = rms(err_mmp_fir(3,:));
+rms_iir(1) = rms(err_mmp_iir(1,:));
+rms_iir(2) = rms(err_mmp_iir(2,:));
+rms_iir(3) = rms(err_mmp_iir(3,:));
 
-fprintf('RMS of QFIR-WFIR: %d\n',rms_y1);
-fprintf('RMS of QFIR-WIIR: %d\n',rms_y2);
-fprintf('RMS of QIIR-WFIR: %d\n',rms_y3);
-fprintf('RMS of QIIR-WIIR: %d\n',rms_y4);
+fprintf('RMS of Q-BP, W-IIR: %d\n',rms(y0_ts));
+fprintf('RMS of Q-SOCP, W-FIR: %d\n',rms(y1_ts(1,:)));
+fprintf('RMS of Q-FIR, W-FIR: %d\n',rms(y2_ts(1,:)));
+fprintf('RMS of Q-IIR, W-FIR: %d\n',rms(y3_ts(1,:)));
+fprintf('RMS of Q-SOCP, W-IIR: %d\n',rms(y1_ts(2,:)));
+fprintf('RMS of Q-FIR, W-IIR: %d\n',rms(y2_ts(2,:)));
+fprintf('RMS of Q-IIR, W-IIR: %d\n',rms(y3_ts(2,:)));
 
+return
 figure
 bode(T_cvx_FIR)
 hold on
