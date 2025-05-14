@@ -515,7 +515,7 @@ for i = 1:n_all
     h(i).Color = color_cvx{i};
     h(i).LineStyle = line_style{i};
 end
-legend('Bandpass','SOCP:FIR', 'SDP:FIR','SDP:IIR','location','southwest')
+legend('Bandpass','SOCP - FIR', 'SDP - FIR','SDP - IIR','location','southwest')
 
 % ================== Error ==========================================
 err_mmp_base = abs(d_out(1,:)-mmp0);
@@ -587,6 +587,8 @@ set(h,'linewidth',l_width);
 
 for i = 1:3
     h(i).Color = color_base{i};
+    % h(i).LineStyle = line_style{i};
+    % h(i).Marker = marker_style{i};
     h(i).MarkerSize = size_mark;
     h(i).LineWidth = l_width2;
 end
@@ -718,7 +720,7 @@ xlabel('Hz')
 legend('W:FIR','W:IIR','location','southeast')
 title('Y output for SDP:FIR filters')
 for i = 1:2
-    h(i).Color = color_cvx{i};
+    h(i).Color = color_cvx{i+1};
     h(i).LineStyle = line_style{i};
 end
 set(h,'linewidth',1);
@@ -848,7 +850,7 @@ figure
 hold on
 for i = 1:4
     h(i) = semilogx(w_in_Hz,mag(i,:));
-    h(i).Color = color_cvx{i};
+    h(i).Color = color_cvx{i+1};
     h(i).LineStyle = line_style{i};
     h(i).LineWidth = 1.5;
 end
@@ -864,10 +866,10 @@ title('W(1), inv(T)')
 figure
 hold on
 for i = 1:4
-    h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
-    h(i+4).Color = color_cvx{i};
-    h(i+4).LineStyle = line_style{i};
-    h(i+4).LineWidth = 1.5;
+h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
+h(i+4).Color = color_cvx{i+1};
+h(i+4).LineStyle = line_style{i};
+h(i+4).LineWidth = 1.5;
 end
 hold off
 ax = gca;
