@@ -57,12 +57,10 @@ Ts_CT_approx = Ts/20; % approximating continuous time sys
 % end
 
 % general test results
-% L = 3;
 % tempW = [1.337 1.739 2.312 2.618]; % okay, bad robustness
 % tempW = [1.32 1.67 1.93 2.18]; % good run
 % tempW = [1.4482 1.7411 2.0070 2.8114]; % okay, mid robustness
 % tempW = [0.23 0.56 0.8];
-% L_t = 3;
 % tempW = [1.7178 2.0072 2.9787 3.5073];
 tempW = [1.32 1.67 2.39 3.41];
 
@@ -277,7 +275,7 @@ B_k = zeros(max_order,1);
 B_k(end) = 1;
 zero_mat = zeros(size(A_h,1),size(A_k,2));
 M_size = size(A_h)+size(A_k);
-clear rho M L_cvx
+clear rho M L_cvx quad_k
 cvx_begin sdp
         variables k((max_order+1),1) rho
         variable M(M_size) symmetric
@@ -534,6 +532,7 @@ rms_iir(1) = rms(err_mmp_iir(1,:));
 rms_iir(2) = rms(err_mmp_iir(2,:));
 rms_iir(3) = rms(err_mmp_iir(3,:));
 
+fprintf('RMS of Q-BP, W-FIR %d\n', rms(y_base_fast(:,4)))
 fprintf('RMS of Q-BP, W-IIR: %d\n',rms(y0_tu));
 fprintf('RMS of Q-SOCP, W-FIR: %d\n',rms(y1_tu(1,:)));
 fprintf('RMS of Q-SOCP, W-IIR: %d\n',rms(y1_tu(2,:)));
