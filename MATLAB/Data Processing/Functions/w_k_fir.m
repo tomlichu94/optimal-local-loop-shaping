@@ -21,15 +21,15 @@ end
 E_k = zeros(m_k1,2*m_d);
 for i = 1:max(k)
     for j = 1:2*m_d
-    E_k(i+L*(j-1),j,i) = 1;
+        E_k(i+L*(j-1),j,i) = 1;
     end
 end
 
 % build M_k matrix, where there are k matrices nested within M_k
 M_k = zeros(m_k1,m_k1);
 for i = 1:max(k)
-M_k(:,1:m_k2,i) = M_kt;
-M_k(:,(m_k2+1):end,i) = E_k(:,:,i);
+    M_k(:,1:m_k2,i) = M_kt;
+    M_k(:,(m_k2+1):end,i) = E_k(:,:,i);
 end
 
 % the signal reconstruction is M_k * [f_vec w_vec]' = [a_vec 0]'

@@ -32,10 +32,10 @@ batches = 220; % the number of cycles
 max_order = 30; % max filter order
 max_amp = 1; % max disturb amplitude
 
-PQ_max = 8; % max value of PQ for the quadratic constraint
+PQ_max = 3; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 500; % SOCP stop constraint past this frequency
-a_g_IIR = 0.90; % predictor alpha
+f_stop = 600; % SOCP stop constraint past this frequency
+a_g_IIR = 0.95; % predictor alpha
 alpha = 0.95; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -57,13 +57,12 @@ Ts_CT_approx = Ts/20; % approximating continuous time sys
 % end
 
 % general test results
-% L = 3;
 % tempW = [1.337 1.739 2.312 2.618]; % okay, bad robustness
-tempW = [1.32 1.67 1.93 2.18]; % good run
+% tempW = [1.32 1.67 1.93 2.18]; % good run
 % tempW = [1.4482 1.7411 2.0070 2.8114]; % okay, mid robustness
 % tempW = [0.23 0.56 0.8];
-% L_t = 3;
 % tempW = [1.7178 2.0072 2.9787 3.5073];
+tempW = [1.32 1.67 2.39 3.41];
 
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
@@ -77,8 +76,8 @@ A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 [W_FIR_num, W_FIR_den] = W_TF_FIR(w_k);
 [W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_IIR,B_para);
 for k = 1:k_t
-W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
-W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
+    W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
+    W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
 end
 
 %% ============== discrete set of frequencies ==========================
@@ -122,7 +121,7 @@ Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
 phi = tf(); % create phi = [1 z^-1 ... z^-r]
 phi(1) = 1;
 for i = 1:max_order
-phi(i+1) = z^(-i);
+    phi(i+1) = z^(-i);
 end
 PQ0_num = conv(Pz_num,Q0_num);
 PQ0_den = conv(Pz_den,Q0_den);
@@ -156,7 +155,7 @@ Pz_2 = real(Pz_val).^2 + imag(Pz_val).^2;
 quad = zeros(max_order+1,max_order+1,length(w_lin));
 for i = 1:length(w_lin)
     quad(:,:,i) = Pz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
-                      Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
+                  Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
 end
 cvx_begin
         variables q_vec((max_order+1),1) b(length(w_lin),1)
@@ -170,15 +169,15 @@ cvx_begin
                1-PQ_d(1,:,i)*q_vec == 0;
             end            
             for i = 1:length(w_lin)
-                quad_q(i) <= b(i)
+                quad_q(i) <= b(i);
             end
 cvx_end
 Qcvx_num = conv(Q0_num,q_vec');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
-Qcvx_socp = tf(Qcvx_num,Qcvx_den,Tu);
-Qcvx_socp = minreal(Qcvx_socp);
-PQ_cvx_quad = minreal(Pz*Qcvx_socp);
-T_cvx_quad = minreal(1-PQ_cvx_quad);
+Q_socp = tf(Qcvx_num,Qcvx_den,Tu);
+Q_socp = minreal(Q_socp);
+PQ_socp = minreal(Pz*Q_socp);
+T_socp = minreal(1-PQ_socp);
 
 %% QFIR SDP implementation
 %%%%%%%%%%%%%%%%%%%%%%%%% FIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -276,7 +275,7 @@ B_k = zeros(max_order,1);
 B_k(end) = 1;
 zero_mat = zeros(size(A_h,1),size(A_k,2));
 M_size = size(A_h)+size(A_k);
-clear rho M L_cvx
+clear rho M L_cvx quad_k
 cvx_begin sdp
         variables k((max_order+1),1) rho
         variable M(M_size) symmetric
@@ -286,7 +285,7 @@ cvx_begin sdp
         B_t = [B_h; B_k*D_h];
         %%%%% 1+HK %%%%%%%%%%%
         C_t = [D_k*C_h, C_k];
-        D_t = [D_k*D_h+1];
+        D_t = D_k*D_h+1;
         %%%%% HK formulation, where HK = -PQ
         L_cvx = [M, M*A_t, M*B_t, zeros(M_size(1),1);... 
             A_t'*M, M, zeros(M_size(1),1), C_t';...
@@ -303,7 +302,7 @@ cvx_begin sdp
             for i = 1:stop_indx
                 quad_k(i) <= beta;
             end
-            L_cvx <= 0;
+            L_cvx<=0;
             rho >= 0;
 cvx_end
 
@@ -324,7 +323,7 @@ T_cvx_IIR = 1 - PQcvx_IIR;
 %% bandpass baseline
 w_hz_d = w_d/(2*pi*Tu);
 B_bw = w_hz_d*0.2; % bandwidth
-[Q_bp Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,Tu);
+[Q_bp, Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,Tu);
 PQ_bp = minreal(Pz*Q_bp);
 T_bp = 1-PQ_bp;
 
@@ -337,7 +336,7 @@ t_base_fast = SimOutBase.y_fast.time;
 t_base_slow = SimOutBase.y_slow.time;
 
 %% Storing Qcvx terms
-Qcvx(1) = Qcvx_socp;
+Qcvx(1) = Q_socp;
 Qcvx(2) = Qcvx_FIR;
 Qcvx(3) = Qcvx_IIR;
 
@@ -354,51 +353,31 @@ for i = 1:3
     t_fast = SimOut.y_fast.time;
     t_slow = SimOut.y_slow.time;
 end
-
-%%
 % y0: Q_bp
 % y1: Q_socp
 % y2: Q_fir
 % y3: Q_iir
+% y#(1):w_fir, y#(2):w_iir
 d_out = d_out';
-y0_tu = y_base_fast(:,1)';
-y1_tu = y_fast(:,:,1)';
-y2_tu = y_fast(:,:,2)';
-y3_tu = y_fast(:,:,3)';
+y0_tu = y_base_fast(:,1)'; % fast output for q_bp using w_iir
+y1_tu = y_fast(:,:,1)'; % output for q_socp
+y2_tu = y_fast(:,:,2)'; % output for q_fir
+y3_tu = y_fast(:,:,3)'; % output for q_iir
 
-y0_ts = y_base_slow(:,1)';
-y1_ts = y_slow(:,:,1)';
-y2_ts = y_slow(:,:,2)';
-y3_ts = y_slow(:,:,3)';
+y0_ts = y_base_slow(:,1)'; % slow output for q_bp
+y1_ts = y_slow(:,:,1)'; % slow output for q_socp
+y2_ts = y_slow(:,:,2)'; % output for q_fir
+y3_ts = y_slow(:,:,3)'; % output for q_iir
 
-mmp0 = y_base_fast(:,2)';
-mmp1 = y_mmp(:,:,1)';
-mmp2 = y_mmp(:,:,2)';
-mmp3 = y_mmp(:,:,3)';
-%%
-% y1: Q_FIR, W_FIR
-% y2: Q_FIR, W_IIR
-% y3: Q_IIR, W_FIR
-% y4: Q_IIR, W_IIR
-% 'b' denotes Ts sampling, 'a' denotes Tu sampling
-% y1b = SimOut.y1b.signals.values;
-% y1a = SimOut.y1a.signals.values;
-% y2b = SimOut.y2b.signals.values;
-% y2a = SimOut.y2a.signals.values;
-% y3b = SimOut.y3b.signals.values;
-% y3a = SimOut.y3a.signals.values;
-% y4b = SimOut.y4b.signals.values;
-% y4a = SimOut.y4a.signals.values;
-% 
-% % MMP output
-% y1c = SimOut.y1c.signals.values;
-% y2c = SimOut.y2c.signals.values;
-% y3c = SimOut.y3c.signals.values; 
-% y4c = SimOut.y4c.signals.values; 
-% d_out = SimOut.y_dist_Tu.signals.values;
+mmp0 = y_base_fast(:,2)'; % output of mmp for Q_bp using w_iir
+mmp1 = y_mmp(:,:,1)'; % output of mmp for q_socp
+mmp2 = y_mmp(:,:,2)'; % output of mmp for q_fir
+mmp3 = y_mmp(:,:,3)'; % output of mmp for q_iir
 
 %% =============== Plotting bode plots ==================================
 % defining the frequency range to be plotted and axes limits
+close all
+clc
 w_in_Hz_end = 1/(2*Tu); % end of plotting for Nyq freq of the fast
 w_in_Hz = 1:1:w_in_Hz_end;
 w_in_rad = w_in_Hz*2*pi;
@@ -406,11 +385,12 @@ Nyq_Hz = 1/(2*Ts);
 w_start = 1; % starting frequency for x_lim
 l_width = 1.2; % linewidth
 font_size = 11; % font size
-x_lim_loop = [100 w_in_Hz_end]; % 1-PQ x_lim
+x_lim_loop = [400 w_in_Hz_end]; % 1-PQ x_lim
 y_lim = [-50 20]; % y_lim
 
 % ==================== plotting style ==================================
-color_all = {[0 0 0], [0.9290 0.6940 0.1250], [0 1 0], [1 0 0], [0 0 1]};
+color_cvx = {[0.9290 0.6940 0.1250], [0 1 0], [1 0 0], [0 0 1]};
+color_base = {[0 0 0],[0.4940 0.1840 0.5560],[0.3010 0.7450 0.9330]};
 marker_style = {'none','diamond','o','x','square'};
 line_style = {'-','--','--',':'};
 n_all = 4;
@@ -445,6 +425,7 @@ mag_T_FIR = 20*log10(mag_T_FIR(:));
 mag_PQ_FIR = 20*log10(mag_PQ_FIR(:));
 phi_T_FIR = wrapTo180(phi_T_FIR(:));
 phi_PQ_FIR = wrapTo180(phi_PQ_FIR(:));
+
 [mag_T_IIR, phi_T_IIR, ~] = bode(T_cvx_IIR,w_in_rad);
 [mag_PQ_IIR, phi_PQ_IIR, ~] = bode(PQcvx_IIR,w_in_rad);
 mag_T_IIR = 20*log10(mag_T_IIR(:));
@@ -452,10 +433,24 @@ mag_PQ_IIR = 20*log10(mag_PQ_IIR(:));
 phi_T_IIR = wrapTo180(phi_T_IIR(:));
 phi_PQ_IIR = wrapTo180(phi_PQ_IIR(:));
 
+[mag_T_bp, phi_T_bp, ~] = bode(T_bp,w_in_rad);
+[mag_PQ_bp, phi_PQ_bp, ~] = bode(PQ_bp,w_in_rad);
+mag_T_bp = 20*log10(mag_T_bp(:));
+mag_PQ_bp = 20*log10(mag_PQ_bp(:));
+phi_T_bp = wrapTo180(phi_T_bp(:));
+phi_PQ_bp = wrapTo180(phi_PQ_bp(:));
+
+[mag_T_socp, phi_T_socp, ~] = bode(T_socp,w_in_rad);
+[mag_PQ_socp, phi_PQ_socp, ~] = bode(PQ_socp,w_in_rad);
+mag_T_socp = 20*log10(mag_T_socp(:));
+mag_PQ_socp = 20*log10(mag_PQ_socp(:));
+phi_T_socp = wrapTo180(phi_T_socp(:));
+phi_PQ_socp = wrapTo180(phi_PQ_socp(:));
 % ======================== PQ plots =====================================
 figure()
 subplot(2,1,1)
-h = semilogx(w_in_Hz,mag_PQ_FIR,w_in_Hz,mag_PQ_IIR);
+h = semilogx(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
+              w_in_Hz,mag_PQ_FIR,w_in_Hz,mag_PQ_IIR);
 set(h,'linewidth',l_width);
 hold on
 x_line = xline(Nyq_Hz);
@@ -464,10 +459,10 @@ x_line.LineWidth = 1.5;
 x_line.FontSize = 10;
 x_line.FontWeight = 'bold';
 for i = 1:m_d
-x_line = xline(f_d(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.LineStyle = '--';
+    x_line = xline(f_d(i));
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1;
+    x_line.LineStyle = '--';
 end
 xlim(x_lim_loop);
 ylim(y_lim);
@@ -476,12 +471,16 @@ ylabel('dB')
 title('Magnitude of PQ')
 ax = gca;
 ax.FontSize= font_size;
-h(1).Color = [0 1 0];
-h(2).Color = [1 0 0];
+for i = 1:n_all
+    h(i).Color = color_cvx{i};
+    h(i).LineStyle = line_style{i};
+end
 hold off
+
 % ============================ 1-PQ plots ===========================
 subplot(2,1,2)
-h = semilogx(w_in_Hz,mag_T_FIR,w_in_Hz,mag_T_IIR);
+h = semilogx(w_in_Hz,mag_T_bp,w_in_Hz,mag_T_socp, ...
+              w_in_Hz,mag_T_FIR,w_in_Hz,mag_T_IIR);
 set(h,'linewidth',l_width);
 hold on
 x_line = xline(Nyq_Hz);
@@ -492,16 +491,16 @@ x_line.FontWeight = 'bold';
 x_line.LabelVerticalAlignment = 'bottom';
 x_line.LabelHorizontalAlignment = 'left';
 for i = 1:size(w_d,2)
-x_line = xline(f_d(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_d(i));
-x_line.LabelHorizontalAlignment = 'left';
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'Bottom';
-x_line.FontSize = 10;
-x_line.LineStyle = '--';
-x_line.FontWeight = 'bold';
+    x_line = xline(f_d(i));
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1;
+    x_line.Label = sprintf('%.f Hz',f_d(i));
+    x_line.LabelHorizontalAlignment = 'left';
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'Bottom';
+    x_line.FontSize = 10;
+    x_line.LineStyle = '--';
+    x_line.FontWeight = 'bold';
 end
 xlim(x_lim_loop);
 ylim(y_lim);
@@ -510,9 +509,11 @@ ylabel('dB')
 title('Magnitude 1-PQ')
 ax = gca;
 ax.FontSize= font_size;
-h(1).Color = [0 1 0];
-h(2).Color = [1 0 0];
-legend('Q:FIR','Q:IIR','location','southwest')
+for i = 1:n_all
+    h(i).Color = color_cvx{i};
+    h(i).LineStyle = line_style{i};
+end
+legend('Bandpass','SOCP:FIR', 'SDP:FIR','SDP:IIR','location','southwest')
 
 % ================== Error ==========================================
 err_mmp_base = abs(d_out(1,:)-mmp0);
@@ -531,20 +532,14 @@ rms_iir(1) = rms(err_mmp_iir(1,:));
 rms_iir(2) = rms(err_mmp_iir(2,:));
 rms_iir(3) = rms(err_mmp_iir(3,:));
 
-fprintf('RMS of Q-BP, W-IIR: %d\n',rms(y0_ts));
-fprintf('RMS of Q-SOCP, W-FIR: %d\n',rms(y1_ts(1,:)));
-fprintf('RMS of Q-FIR, W-FIR: %d\n',rms(y2_ts(1,:)));
-fprintf('RMS of Q-IIR, W-FIR: %d\n',rms(y3_ts(1,:)));
-fprintf('RMS of Q-SOCP, W-IIR: %d\n',rms(y1_ts(2,:)));
-fprintf('RMS of Q-FIR, W-IIR: %d\n',rms(y2_ts(2,:)));
-fprintf('RMS of Q-IIR, W-IIR: %d\n',rms(y3_ts(2,:)));
-
-return
-figure
-bode(T_cvx_FIR)
-hold on
-bode(T_cvx_IIR)
-legend('FIR','IIR')
+fprintf('RMS of Q-BP, W-FIR %d\n', rms(y_base_fast(:,4)))
+fprintf('RMS of Q-BP, W-IIR: %d\n',rms(y0_tu));
+fprintf('RMS of Q-SOCP, W-FIR: %d\n',rms(y1_tu(1,:)));
+fprintf('RMS of Q-SOCP, W-IIR: %d\n',rms(y1_tu(2,:)));
+fprintf('RMS of Q-FIR, W-FIR: %d\n',rms(y2_tu(1,:)));
+fprintf('RMS of Q-FIR, W-IIR: %d\n',rms(y2_tu(2,:)));
+fprintf('RMS of Q-IIR, W-FIR: %d\n',rms(y3_tu(1,:)));
+fprintf('RMS of Q-IIR, W-IIR: %d\n',rms(y3_tu(2,:)));
 
 % ==================== Plotting outputs ==============================
 % ==================== Spectral of noise ==============================
@@ -563,33 +558,56 @@ legend('FIR','IIR')
 % ylabel('Magnitude')
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Plotting - Simulink %%%%%%%%%%%%%%%%%%%%%%%%%
-% y1: Q_FIR, W_FIR
-% y2: Q_FIR, W_IIR
-% y3: Q_IIR, W_FIR
-% y4: Q_IIR, W_IIR
+% y0: Q_bp
+% y1: Q_socp
+% y2: Q_fir
+% y3: Q_iir
+% y#(1,:):w_fir, y#(2,:):w_iir
 y_out_lim = [-6 6];
-x_Ts = round(size(tsim_Ts,1)/20);
-x_Tu = round(size(tsim_Tu,1)/20);
-size_mark = 8;
+x_lim = [1.58 1.6];
+size_mark = 6;
 l_width2 = 1;
+
 figure()
-h(1) = stairs(tsim_Ts,y1b);
+h(1) = stairs(t_fast,y0_tu);
 hold on
-h(2) = stairs(tsim_Ts,y2b);
-h(3) = stairs(tsim_Ts,y3b);
-h(4) = stairs(tsim_Ts,y4b);
+h(2) = stairs(t_fast,y1_tu(1,:));
+h(3) = stairs(t_fast,y1_tu(2,:));
 hold off
-legend('Q:FIR - W:FIR','Q:FIR - W:IIR','Q:IIR - W:FIR','Q:IIR - W:IIR','location','southeast')
+title('Output Position, Fast')
+legend('Bandpass - W:IIR','SOCP - W:FIR','SOCP - W:IIR','location','southeast')
+ax = gca;
+ax.FontSize= font_size;
+xlim(x_lim)
+ylim([-10 10]);
+xlabel('Time (sec)')
+ylabel('Magnitude')
+set(h,'linewidth',l_width);
+
+for i = 1:3
+    h(i).Color = color_base{i};
+    h(i).MarkerSize = size_mark;
+    h(i).LineWidth = l_width2;
+end
+
+figure()
+h(1) = stairs(t_slow,y2_ts(1,:));
+hold on
+h(2) = stairs(t_slow,y2_ts(2,:));
+h(3) = stairs(t_slow,y3_ts(1,:));
+h(4) = stairs(t_slow,y3_ts(2,:));
+hold off
+legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
 title('Output Position, Slow')
 ax = gca;
 ax.FontSize= font_size;
-xlim([0 tsim_Ts(x_Ts)])
+xlim(x_lim)
 ylim(y_out_lim);
 xlabel('Time (sec)')
 ylabel('Magnitude')
 set(h,'linewidth',l_width);
 for i = 1:n_all
-    h(i).Color = color_all{i};
+    h(i).Color = color_cvx{i};
     h(i).LineStyle = line_style{i};
     h(i).Marker = marker_style{i};
     h(i).MarkerSize = size_mark;
@@ -597,34 +615,74 @@ for i = 1:n_all
 end
 
 figure()
-h(1) = stairs(tsim_Tu,y1a);
+h(1) = stairs(t_fast,y2_tu(1,:));
 hold on
-h(2) = stairs(tsim_Tu,y2a);
-h(3) = stairs(tsim_Tu,y3a);
-h(4) = stairs(tsim_Tu,y4a);
-
+h(2) = stairs(t_fast,y2_tu(2,:));
+h(3) = stairs(t_fast,y3_tu(1,:));
+h(4) = stairs(t_fast,y3_tu(2,:));
 hold off
 title('Output Position, Fast')
-legend('Q:FIR - W:FIR','Q:FIR - W:IIR','Q:IIR - W:FIR','Q:IIR - W:IIR','location','southeast')
+legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
 ax = gca;
 ax.FontSize= font_size;
-xlim([0 tsim_Ts(x_Tu)])
-ylim([y_out_lim]);
+xlim(x_lim)
+ylim(y_out_lim);
 xlabel('Time (sec)')
 ylabel('Magnitude')
 set(h,'linewidth',l_width);
 for i = 1:n_all
-    h(i).Color = color_all{i};
+    h(i).Color = color_cvx{i};
     h(i).LineStyle = line_style{i};
     h(i).Marker = marker_style{i};
     h(i).MarkerSize = size_mark;
     h(i).LineWidth = l_width2;
 end
 
-spec_QFIR_FIR = specCal(y1a,1/Tu);
-spec_QFIR_IIR = specCal(y2a,1/Tu);
-spec_QIIR_FIR = specCal(y3a,1/Tu);
-spec_QIIR_IIR = specCal(y4a,1/Tu);
+spec_Qsocp_fir = specCal(y1_tu(1,:),1/Tu);
+spec_Qsocp_iir = specCal(y1_tu(2,:),1/Tu);
+spec_QFIR_FIR = specCal(y2_tu(1,:),1/Tu);
+spec_QFIR_IIR = specCal(y2_tu(2,:),1/Tu);
+spec_QIIR_FIR = specCal(y3_tu(1,:),1/Tu);
+spec_QIIR_IIR = specCal(y3_tu(2,:),1/Tu);
+
+figure()
+h(1) = semilogy(spec_Qsocp_fir.f,spec_Qsocp_fir.amp);
+hold on
+h(2) = semilogy(spec_Qsocp_iir.f,spec_Qsocp_iir.amp);
+ax = gca;
+ax.FontSize= font_size;
+x_line = xline(Nyq_Hz);
+x_line.Color = [0 0 0];
+x_line.LineWidth = 1.5;
+x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+x_line.LabelOrientation = 'aligned';
+x_line.LabelVerticalAlignment = 'bottom';
+x_line.LabelHorizontalAlignment = 'center';
+x_line.FontSize = 10;
+x_line.FontWeight = 'bold';
+for i = 1:m_d
+x_line = xline(f_d(i));
+x_line.Color = [0 0 0];
+x_line.LineWidth = 1;
+x_line.Label = sprintf('%.f Hz',f_d(i));
+x_line.LabelOrientation = 'aligned';
+x_line.LabelVerticalAlignment = 'bottom';
+x_line.LabelHorizontalAlignment = 'center';
+x_line.FontSize = 10;
+x_line.FontWeight = 'bold';
+x_line.LineStyle = '--';
+end
+xlim([spec_Qsocp_fir.f(1) spec_Qsocp_fir.f(end)])
+ylabel('Magnitude')
+xlabel('Hz')
+legend('W:FIR','W:IIR','location','southeast')
+title('Y output for SOCP filters')
+for i = 1:2
+    h(i).Color = color_base{i+1};
+    h(i).LineStyle = line_style{i};
+end
+set(h,'linewidth',1);
+hold off
 
 figure()
 h(1) = semilogy(spec_QFIR_FIR.f,spec_QFIR_FIR.amp);
@@ -657,9 +715,9 @@ xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
 ylabel('Magnitude')
 xlabel('Hz')
 legend('W:FIR','W:IIR','location','southeast')
-title('Y output for Q:FIR filters')
+title('Y output for SDP:FIR filters')
 for i = 1:2
-    h(i).Color = color_all{i};
+    h(i).Color = color_cvx{i};
     h(i).LineStyle = line_style{i};
 end
 set(h,'linewidth',1);
@@ -696,19 +754,24 @@ xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
 ylabel('Magnitude')
 xlabel('Hz')
 legend('W:FIR','W:IIR','location','southeast')
-title('Y output for Q:IIR filters')
+title('Y output for SDP:IIR filters')
 for i = 3:4
-    h(i).Color = color_all{i};
+    h(i).Color = color_cvx{i};
     h(i).LineStyle = line_style{i};
 end
 set(h,'linewidth',1);
 hold off
 
+% mmp0 = y_base_fast(:,2)'; % output of mmp for Q_bp using w_iir
+% mmp1 = y_mmp(:,:,1)'; % output of mmp for q_socp
+% mmp2 = y_mmp(:,:,2)'; % output of mmp for q_fir
+% mmp3 = y_mmp(:,:,3)'; % output of mmp for q_iir
+
 % MMP output
-spec_y_MMP_QF_FIR = specCal(y1c,1/Tu);
-spec_y_MMP_QF_IIR = specCal(y2c,1/Tu);
-spec_y_MMP_QI_FIR = specCal(y3c,1/Tu);
-spec_y_MMP_QI_IIR = specCal(y4c,1/Tu);
+spec_y_MMP_QF_FIR = specCal(mmp2(1,:),1/Tu);
+spec_y_MMP_QF_IIR = specCal(mmp2(2,:),1/Tu);
+spec_y_MMP_QI_FIR = specCal(mmp3(1,:),1/Tu);
+spec_y_MMP_QI_IIR = specCal(mmp3(2,:),1/Tu);
 
 figure
 h(1) = semilogy(spec_y_MMP_QF_FIR.f,spec_y_MMP_QF_FIR.amp);
@@ -783,10 +846,10 @@ phi = wrapTo180(squeeze(phi));
 figure
 hold on
 for i = 1:4
-h(i) = semilogx(w_in_Hz,mag(i,:));
-h(i).Color = color_all{i};
-h(i).LineStyle = line_style{i};
-h(i).LineWidth = 2.5-0.1*i;
+    h(i) = semilogx(w_in_Hz,mag(i,:));
+    h(i).Color = color_cvx{i};
+    h(i).LineStyle = line_style{i};
+    h(i).LineWidth = 1.5;
 end
 hold off
 ax = gca;
@@ -794,16 +857,16 @@ ax.FontSize= font_size;
 xlim([1 2640])
 xlabel('Hz')
 ylabel('Magnitude (dB)')
-legend('Q:FIR - W:FIR','Q:FIR - W:IIR','Q:IIR - W:FIR','Q:IIR - W:IIR','location','southeast')
+legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
 title('W(1), inv(T)')
 
 figure
 hold on
 for i = 1:4
-h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
-h(i+4).Color = color_all{i};
-h(i+4).LineStyle = line_style{i};
-h(i+4).LineWidth = 2.5-0.1*i;
+    h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
+    h(i+4).Color = color_cvx{i};
+    h(i+4).LineStyle = line_style{i};
+    h(i+4).LineWidth = 1.5;
 end
 hold off
 ax = gca;
@@ -811,7 +874,7 @@ ax.FontSize= font_size;
 xlim([1 2640])
 xlabel('Hz')
 ylabel('Magnitude (dB)')
-legend('Q:FIR - W:FIR','Q:FIR - W:IIR','Q:IIR - W:FIR','Q:IIR - W:IIR','location','southeast')
+legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
 title('W(2), inv(T)')
 
 figure
@@ -819,7 +882,7 @@ hold on
 for i = 1:2
 h(i+8) = semilogx(w_in_Hz,mag(i+4,:));
 h(i+8).LineStyle = line_style{i};
-h(i+8).LineWidth = 2.5-0.1*i;
+h(i+8).LineWidth = 1.5;
 end
 hold off
 ax = gca;
@@ -827,7 +890,7 @@ ax.FontSize= font_size;
 xlim([1 2640])
 xlabel('Hz')
 ylabel('Magnitude (dB)')
-legend('Q:FIR','Q:IIR','location','southeast')
+legend('SDP:FIR','SDP:IIR','location','southeast')
 title('1/|T(z)|')
 % % bode of T
 % [mag, phi, ~] = bode(T_all,w_in_rad);
