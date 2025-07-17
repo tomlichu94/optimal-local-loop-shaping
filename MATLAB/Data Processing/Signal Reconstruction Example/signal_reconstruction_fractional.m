@@ -5,7 +5,7 @@ clc
 %% fractional signal reconstruction generalized
 
 % signal recovery parameters
-L = 10;
+L = 5/2;
 [R, den] = rat(1/L);
 RL = L*R; % scaling to make R*L an integer
 t_ss = 0.1;
@@ -17,10 +17,13 @@ f_ny_comb = 1/(2*t_ss/RL);
 % simulation time and sin generator
 t_end = 5;
 % generate signals for reconstruction'%
-m_d = 3;
-f_hz = sort(f_ny_ss+(f_ny_comb-f_ny_ss)*rand(1,m_d)); % generate random 
-A_hz = rand(1,m_d);
-p_off = rand(1,m_d);
+% m_d = 3;
+% f_hz = sort(f_ny_ss+(f_ny_comb-f_ny_ss)*rand(1,m_d)); % generate random 
+% A_hz = rand(1,m_d);
+% p_off = rand(1,m_d);
+f_hz = [7, 9];
+A_hz = [1 1];
+p_off = [0, 1];
 [sig_ct, sig_ss, sig_fs] = sin_generator(f_hz,A_hz,p_off,t_fs,t_ss,t_end);
 % plotting the signal
 figure
