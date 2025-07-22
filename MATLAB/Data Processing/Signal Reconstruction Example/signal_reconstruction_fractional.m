@@ -5,25 +5,23 @@ clc
 %% fractional signal reconstruction generalized
 
 % signal recovery parameters
-L = 5/2;
+L = 9/4;
 [R, den] = rat(1/L);
 RL = L*R; % scaling to make R*L an integer
 t_ss = 0.1;
 t_fs = t_ss/L; % fast rate
-f_ny_ss = 1/(2*t_ss); % slow sampling nyquist frequency
-f_ny_fs = 1/(2*t_fs); % fast sampling nyquist freqquency
-f_ny_comb = 1/(2*t_ss/RL);
+f_ny_ss = 1/(2*t_ss); % slow sampling Nyquist frequency
+f_ny_fs = 1/(2*t_fs); % fast sampling Nyquist freqquency
+f_ny_comb = 1/(2*t_ss/RL); % Nyquist frequency of the combined rate
 
 % simulation time and sin generator
-t_end = 5;
+t_end = 100;
 % generate signals for reconstruction'%
-% m_d = 3;
-% f_hz = sort(f_ny_ss+(f_ny_comb-f_ny_ss)*rand(1,m_d)); % generate random 
-% A_hz = rand(1,m_d);
-% p_off = rand(1,m_d);
-f_hz = [7, 9];
-A_hz = [1 1];
-p_off = [0, 1];
+m_d = 7;
+f_hz = sort(f_ny_ss+(f_ny_comb-f_ny_ss)*rand(1,m_d)); % generate random 
+A_hz = rand(1,m_d);
+p_off = rand(1,m_d);
+
 [sig_ct, sig_ss, sig_fs] = sin_generator(f_hz,A_hz,p_off,t_fs,t_ss,t_end);
 % plotting the signal
 figure
@@ -33,24 +31,12 @@ stairs(sig_ss(1,:),sig_ss(2,:))
 stairs(sig_fs(1,:),sig_fs(2,:))
 legend('CT','SS','FS')
 
-% signal recovery
-[w_k] = w_k_frac(f_hz, t_fs, R*L);
-y_est = zeros(1,(length(sig_ss)-1)*R*L+1);
+y_est = multi_phase_recovery(sig_ss(2,:), f_hz, t_fs, t_end, R, L);
 
-% preallocate output variables
-y_est_fs = cell(1,R);
-for i = 1:R
-    y_fcn = signal_recovery(sig_ss(2,i:end),w_k,R,L);
-    base_idx = (i-1)*R*L+1; % starting index
-    idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
-    y_est(idx) = y_fcn;
-end
-
-t_lin_fs = 0:t_ss/RL:t_end;
 figure
 stairs(sig_ct(1,:),sig_ct(2,:))
 hold on
-stairs(t_lin_fs,y_est,'o')
+stairs(y_est(1,:), y_est(2,:),'o')
 xlim([R^2 R^2+2*RL]*t_ss)
 xlabel('Time (sec)')
 ylabel('Output')
@@ -58,14 +44,27 @@ legend('Ground Truth','Fractional Signal Recovery')
 title('Signal Recovery')
 
 %% MATLAB functions
+% multi phase signal recovery
+function [out] = multi_phase_recovery(input_signal, f_hz, t_fs, t_end, R, L)
+    length_ss = length(input_signal);  % Length of the input signal
+    out = zeros(2,(length_ss-1)*R*L);
+    for i = 1:R
+        y_fcn = signal_recovery(input_signal(i:end), f_hz, t_fs, R, L);
+        base_idx = (i-1)*R*L+1; % starting index
+        idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
+        out(2,idx) = y_fcn;
+    end
+    out(1,:) = 0:t_fs/R:t_end;
+end
+
 % returns w_k coefficient
-function [w_k] = w_k_frac(f_d, T_s, RL)
+function [w_k] = w_k_frac(f_d, T_s, R, L)
     % Efficient version of w_k_frac
     % Inputs:
     %   f_d : vector of digital frequencies
     %   T_s : fast sampling period
     %   RL  : rate conversion factor (assumed integer)
-
+    RL = R*L;
     if mod(RL,1) ~= 0
         error('RL must be an integer');
     end
@@ -120,9 +119,10 @@ function [w_k] = w_k_frac(f_d, T_s, RL)
 end
 
 % signal recovery
-function [out] = signal_recovery(y_ss,w_k,R,L)
+function [out] = signal_recovery(input_signal, f_hz, t_fs, R, L)
     persistent phi
-    length_fs = floor((length(y_ss)-1)*L)+1;
+    w_k = w_k_frac(f_hz, t_fs, R, L);
+    length_fs = floor((length(input_signal)-1)*L)+1;
     out = zeros(1,length_fs);
     n_w = height(w_k); 
     n_ss = 1;
@@ -133,7 +133,7 @@ function [out] = signal_recovery(y_ss,w_k,R,L)
         k = mod((n_fs-1),R*L); % check if on intersample
         if n_ss < n_w+1
             if k == 0 % Fast and slow align
-                phi = [y_ss((n_ss-1)*R+1), phi(1:end-1)]; % Shift and update phi
+                phi = [input_signal((n_ss-1)*R+1), phi(1:end-1)]; % Shift and update phi
                 out(n_fs) = 0;
                 n_ss = n_ss+1;
             else % Not enough data for intersample estimation
@@ -142,8 +142,8 @@ function [out] = signal_recovery(y_ss,w_k,R,L)
         % Case 2: n_ss >= n_w (enough data points for FIR)
         else
             if k == 0
-                phi = [y_ss((n_ss-1)*R+1), phi(1:end-1)];
-                out(n_fs) = y_ss((n_ss-1)*R+1);
+                phi = [input_signal((n_ss-1)*R+1), phi(1:end-1)];
+                out(n_fs) = input_signal((n_ss-1)*R+1);
                 n_ss = n_ss+1;
             else % FIR reconstruction
                 out(n_fs) = phi * w_k(:, k); 
