@@ -1,4 +1,4 @@
-function [w_k Bpara] = w_k_iir(L,f_d,a_g,T_s)
+function [w_k, Bpara] = w_k_iir(L,f_d,a_g,T_s)
 % T_s is the fast sampling rate
 k = 1:(L-1);
 m_d = max(size(f_d));
