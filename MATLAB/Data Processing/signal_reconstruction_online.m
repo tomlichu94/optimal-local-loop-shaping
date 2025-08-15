@@ -4,7 +4,7 @@ clear
 %% model parameters
 % DC motor from MinSegMotor
 % sampled at 250 Hz
-% input is 3.9V with a sin wave at 8 Hz.
+% input is 2.5 V with a sin wave at 8 Hz.
 % noise is introduced into the "clean" measured data
 % Fast sampling here defined at 250 Hz, slow sampling at 50 Hz
 addpath('Functions')
@@ -22,7 +22,7 @@ f_in = 8;
 
 %% run hardware, then export the data exporting data
 close all
-addpath('Experimental Runs')
+addpath('Experimental Runs\ALDSC')
 load run_8.mat
 y_encoder = squeeze(out_encoder.signals.values)';
 t_encoder = out_encoder.time';
