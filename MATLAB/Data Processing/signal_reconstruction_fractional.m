@@ -34,9 +34,10 @@ stairs(sig_ss(1,:),sig_ss(2,:))
 stairs(sig_fs(1,:),sig_fs(2,:))
 legend('CT','SS','FS')
 
-input_signal = awgn(sig_ss(2,:),10,'measured');
+% input_signal = awgn(sig_ss(2,:),10,'measured');
+% input_signal = sig_ss(2,:);
 
-y_est = multi_phase_recovery(input_signal, f_hz, t_fs, t_end, R, L);
+y_est = multi_phase_recovery_fir(input_signal, f_hz, t_fs, t_end, R, L);
 
 figure
 stairs(sig_ct(1,:),sig_ct(2,:))
@@ -64,25 +65,28 @@ title('Signal Recovery')
 
 %% MATLAB functions
 % signal recovery using iir
-function out = signal_recovery_iir(input_signal, f_hz, t_fs, a_g, R, L)
-% SIGNAL_RECOVERY_IIR - Performs IIR-based signal recovery on slow-sampled input
-%
-% Syntax:
-%   out = signal_recovery_iir(input_signal, f_hz, t_fs, a_g, R, L)
-%
+function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, R, L)
+% IIR-signal recovery using fractional-speeds, every Rth slow sample is
+% used since L is a fraction and L = num/R.
+% (e.g. fast sampling is 5/2 times faster than slow sampling)
+
 % Inputs:
-%   input_signal : Row vector of slow-sampled signal values
-%   f_hz         : Vector of harmonic frequencies in Hz
-%   t_fs         : Fast sampling time
-%   a_g          : Group delay parameter for IIR filter design
-%   R            : Downsampling factor
-%   L            : Upsampling factor
+%   input_signal : row vec of slow sampled signal only
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   a_g          : bandwidth of the IIR signal recovery
+%   R            : if t_ss = t_s * L, where t_ss is the slow sampling time
+%                  and L = num/den, den = R (num and den are integers)
+%   L            : upsampling factor
 %
 % Output:
-%   out          : Reconstructed signal at fast sampling rate
+%   out:         : output recoverd signal upsampled by L
 
     RL = R * L;
-    [w_kiir, Bpara] = w_kiir_frac(f_hz, t_fs, a_g, R, L); % extract W_k coefficients
+    % find W_k coefficiets
+    [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L); % extract W_k coefficients
+    
+    % determine signal lengths for fast sampling
     length_ss = length(input_signal);
     set_ss = 1:R:length_ss;
     length_set = length(set_ss) - 1;
@@ -90,18 +94,19 @@ function out = signal_recovery_iir(input_signal, f_hz, t_fs, a_g, R, L)
     out = zeros(1, length_fs); % preallocate recovered signal array
     n_w = height(w_kiir);
     n_ss = 1; % slow sample index counter
+    
     % Create circular buffer for IIR reconstruction
     buffer_indices = 2:RL:((n_w - 1) * RL + 2);
     max_buffer_size = n_w * RL + 1;
     d_buff = zeros(1, max_buffer_size); % fast signal buffer
     phi = zeros(1, n_w); % store past slow samples
 
+    % signal recovery algorithm
     for n_fs = 1:length_fs
         d_temp = input_signal((n_ss - 1) * R + 1);
         k = mod(n_fs - 1, RL); % intersample point index
-
+        % Case 1: not enough slow samples
         if n_ss < n_w + 1
-            % Case 1: not enough slow samples
             if k == 0
                 phi = [d_temp, phi(1:end - 1)];
                 out(n_fs) = 0;
@@ -109,8 +114,8 @@ function out = signal_recovery_iir(input_signal, f_hz, t_fs, a_g, R, L)
             else
                 out(n_fs) = 0;
             end
+        % Case 2: enough for FIR
         elseif n_ss >= n_w && n_ss < n_w + R
-            % Case 2: enough for FIR
             if k == 0
                 phi = [d_temp, phi(1:end - 1)];
                 out(n_fs) = d_temp;
@@ -118,8 +123,8 @@ function out = signal_recovery_iir(input_signal, f_hz, t_fs, a_g, R, L)
             else
                 out(n_fs) = phi * w_kiir(:, k);
             end
+        % Case 3: IIR reconstruction
         else
-            % Case 3: IIR reconstruction
             if k == 0
                 phi = [d_temp, phi(1:end - 1)];
                 out(n_fs) = d_temp;
@@ -130,29 +135,44 @@ function out = signal_recovery_iir(input_signal, f_hz, t_fs, a_g, R, L)
                             d_temp_buff(buffer_indices) * flip(Bpara(2:end))';
             end
         end
-
         % Update circular buffer
         d_buff = [out(n_fs), d_buff(1:end - 1)];
     end
 end
 
 % coefficients for iir
-function [w_kiir, Bpara] = w_kiir_frac(f_d, T_s, a_g, R, L)
-    % T_s is the fast sampling rate
+function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L)
+% IIR-MMP coefficents ...
+% ... (e.g. fast sampling is 5/2 times faster than slow sampling)
+% Inputs:
+%   f_hz         : signal frequency to be recovered
+%   t_s         : fast sampling time
+%   a_g          : bandwidth of the IIR signal recovery
+%   R            : if t_ss = T_fs * L, ...
+%                  ... and L = num/den, den = R (num and den are integers)
+%   L            : upsampling factor
+%
+% Output:
+%   w_kiir       : outputs coefficients for signal recovery ...
+%                  ... 2m_d x (RL-1), where m is the number of frequencies
+%   Bpara        : denominator coefficients of the IIR-MMP
+
     RL = R*L;
     if mod(RL,1) ~= 0
         error('RL must be an integer')
     end
 
-    k_max = RL-1;
-    m_d = numel(f_d); % num of frequencies
+    k_max = RL-1; % max num of intersamples
+    m_d = numel(f_hz); % num of frequencies
     
-    Apara = 1; % defined as the coefficients for A(z) = 1 + a_1 z^-1 + ... + z^-2m
+    % finding coefficeints for A(z) and B(z), used in diophantine Eqn, ...
+    % ... where F(z)A(z) + z^{-k} W_{k}(z) - B(z) = 0
+    Apara = 1;
     Bpara = 1;
     for i = 1:m_d
-        omega = 2 * pi * f_d(i) * T_s;
+        omega = 2 * pi * f_hz(i) * t_s;
         Apara = conv(Apara,[1 -2*cos(omega) 1]);
-        Bpara = conv(Bpara,[1 -2*a_g*cos(RL*omega) a_g^2]);
+        Bpara = conv(Bpara,[1 -2*a_g*cos(RL*omega) a_g^2]); % output
     end
     m_a = numel(Apara); % num of coeff for Apara
     n_w = 2* m_d - 1; % number of W coefficients starting from 0
@@ -171,7 +191,7 @@ function [w_kiir, Bpara] = w_kiir_frac(f_d, T_s, a_g, R, L)
     M_k = zeros(m_k1, m_k1, k_max);
     E_k = zeros(m_k1, 2*m_d, k_max);
     
-    % determine 1 location for each col of E_k
+    % determine location of 1 for each col of E_k
     for ki = 1:k_max
         for j = 1:2*m_d
             row_idx = ki + RL * (j - 1);
@@ -182,7 +202,7 @@ function [w_kiir, Bpara] = w_kiir_frac(f_d, T_s, a_g, R, L)
     end
 
     % the signal reconstruction is M_k * [f_vec w_vec]' = [a_vec 0]'
-    % let us express this as Ax = b
+    % let us express this as Ax = b, where the solution is x = inv(A)b
     a_sol = -[Apara(2:end)'; zeros(m_k1 - m_a + 1,1)];
     a_size = size(a_sol);
     b_sol = zeros(a_size);
@@ -195,54 +215,102 @@ function [w_kiir, Bpara] = w_kiir_frac(f_d, T_s, a_g, R, L)
     for i = 1:k_max
         x_sol(:,i) = M_k(:,:,i) \ (a_sol+b_sol);
     end
-    w_kiir = x_sol(end - n_w:end, :);
+    w_kiir = x_sol(end - n_w:end, :); % output
 end
 
 % multi phase signal recovery for IIR
-function [out] = multi_phase_recovery_iir(input_signal, f_hz, t_fs, t_end, a_g, R, L)
-    length_ss = length(input_signal);         % e.g., 51
-    out = zeros(2, (length_ss-1)*R*L+1);                % preallocate output
+function [out] = multi_phase_recovery_iir(input_signal, f_hz, t_s, t_end, a_g, R, L)
+% IIR signal recovery, with R recoveries in tandem, increasing output ...
+% ... sampling rate by t_ss/(RL) 
+% R signal recoveries performend, each delayed by t_ss
+
+% Inputs:
+%   input_signal : row vec of slow sampled signal only
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   t_end        : end simulation time
+%   a_g          : bandwidth of the IIR signal recovery
+%   R            : if t_ss = t_s * L, where t_ss is the slow sampling time
+%                  and L = num/den, den = R (num and den are integers)
+%   L            : upsampling factor
+%
+% Output:
+%   out:         : output recoverd signal upsampled by RL ...
+%                : ... out(1,:) is the time, out(2,:) is the signal
+
+    % preallocate output
+    length_ss = length(input_signal);     % length of slow sampled output
+    out = zeros(2, (length_ss-1)*R*L+1);
+
+    % perform multiple signal recovery, offset by one slow sample
     for i = 1:R
-        % shifted_input = [input_signal(i:end), zeros(1, i-1)];
-        y_fcn = signal_recovery_iir(input_signal(i:end), f_hz, t_fs, a_g, R, L);
+        y_fcn = signal_recovery_iir(input_signal(i:end), f_hz, t_s, a_g, R, L);
         base_idx = (i-1)*R*L+1; % starting index
         idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
         out(2,idx) = y_fcn;
     end
-    out(1,:) = 0:t_fs/R:t_end;
+    out(1,:) = 0:t_s/R:t_end;
 end
 
 % multi phase signal recovery for FIR
-function [out] = multi_phase_recovery(input_signal, f_hz, t_fs, t_end, R, L)
+function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, R, L)
+% FIR signal recovery, with R recoveries in tandem, increasing output ...
+% ... sampling rate by t_ss/(RL) 
+% R signal recoveries performend, each delayed by t_ss
+
+% Inputs:
+%   input_signal : row vec of slow sampled signal only
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   t_end        : end simulation time
+%   R            : if t_ss = t_s * L, where t_ss is the slow sampling time
+%                  and L = num/den, den = R (num and den are integers)
+%   L            : upsampling factor
+%
+% Output:
+%   out:         : output recoverd signal upsampled by RL ...
+%                : ... out(1,:) is the time, out(2,:) is the signal
+    % preallocate output
     length_ss = length(input_signal);  % Length of the input signal
     out = zeros(2,(length_ss-1)*R*L+1);
+
+    % perform multiple signal recovery, offset by one slow sample
     for i = 1:R
-        y_fcn = signal_recovery(input_signal(i:end), f_hz, t_fs, R, L);
+        y_fcn = signal_recovery_fir(input_signal(i:end), f_hz, t_s, R, L);
         base_idx = (i-1)*R*L+1; % starting index
         idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
         out(2,idx) = y_fcn;
     end
-    out(1,:) = 0:t_fs/R:t_end;
+    out(1,:) = 0:t_s/R:t_end;
 end
 
 % returns w_k coefficient
-function [w_k] = w_k_frac(f_d, T_s, R, L)
-    % Inputs:
-    %   f_d : vector of digital frequencies
-    %   T_s : fast sampling period
-    %   RL  : rate conversion factor (assumed integer)
+function [w_kfir] = w_kfir_frac(f_hz, t_s, R, L)
+% FIR-MMP coefficents ...
+% ... (e.g. fast sampling is 5/2 times faster than slow sampling)
+% Inputs:
+%   f_hz         : signal frequency to be recovered
+%   t_s         : fast sampling time
+%   R            : if t_ss = T_fs * L, ...
+%                  ... and L = num/den, den = R (num and den are integers)
+%   L            : upsampling factor
+%
+% Output:
+%   w_kfir       : outputs coefficients for signal recovery ...
+%                  ... 2m_d x (RL-1), where m is the number of frequencies
+
     RL = R*L;
     if mod(RL,1) ~= 0
         error('RL must be an integer');
     end
 
     k_max = RL - 1;
-    m_d = numel(f_d);
+    m_d = numel(f_hz);
 
     % Compute A(z) coefficients
     Apara = 1;
     for i = 1:m_d
-        omega = 2 * pi * f_d(i) * T_s;
+        omega = 2 * pi * f_hz(i) * t_s;
         Apara = conv(Apara, [1 -2*cos(omega) 1]);
     end
     m_a = numel(Apara);
@@ -252,7 +320,7 @@ function [w_k] = w_k_frac(f_d, T_s, R, L)
     m_k1 = 2*m_d * RL;
     m_k2 = 2*m_d * (RL - 1);
 
-    % Construct M_kt matrix (Toeplitz-like)
+    % Construct M_kt matrix
     M_kt = zeros(m_k1, m_k2);
     for i = 1:m_k2
         M_kt(i:i + m_a - 1, i) = Apara(:);
@@ -281,23 +349,42 @@ function [w_k] = w_k_frac(f_d, T_s, R, L)
         x_sol(:, ki) = M_k(:, :, ki) \ a_sol;  % faster than pinv
     end
 
-    % Extract w_k (last n_w + 1 rows of x_sol)
-    w_k = x_sol(end - n_w:end, :);
+    % output coefficients
+    w_kfir = x_sol(end - n_w:end, :);
 end
 
 % signal recovery
-function [out] = signal_recovery(input_signal, f_hz, t_fs, R, L)
-    persistent phi
-    w_k = w_k_frac(f_hz, t_fs, R, L);
+function [out] = signal_recovery_fir(input_signal, f_hz, t_s, R, L)
+% FIR-signal recovery using fractional-speeds, every Rth slow sample is
+% used since L is a fraction and L = num/R.
+% (e.g. fast sampling is 5/2 times faster than slow sampling)
+
+% Inputs:
+%   input_signal : row vec of slow sampled signal only
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   a_g          : bandwidth of the IIR signal recovery
+%   R            : if t_ss = t_s * L, where t_ss is the slow sampling time
+%                  and L = num/den, den = R (num and den are integers)
+%   L            : upsampling factor
+%
+% Output:
+%   out:         : output recoverd signal upsampled by L
+
+    % preallocate output
     length_fs = floor((length(input_signal)-1)*L)+1;
     out = zeros(1,length_fs);
+
+    % finding coefficients for FIR-MMP
+    w_k = w_kfir_frac(f_hz, t_s, R, L);
+    
+    % signal recovery algorithm
     n_w = height(w_k); 
-    n_ss = 1;
-    if isempty(phi)
-        phi = zeros(1, n_w); % Preallocate phi using the same type as d_ss
-    end
+    phi = zeros(1, n_w); % store past slow samples
+    n_ss = 1; % start slow sample count
     for n_fs = 1:length_fs
-        k = mod((n_fs-1),R*L); % check if on intersample
+        k = mod((n_fs-1),R*L); % find intersample count
+        % case 1: insufficient number of historical measurements
         if n_ss < n_w+1
             if k == 0 % Fast and slow align
                 phi = [input_signal((n_ss-1)*R+1), phi(1:end-1)]; % Shift and update phi
@@ -334,58 +421,4 @@ function [sig_ct, sig_ss, sig_fs] = sin_generator(f_hz,A_dist,p_off,t_fs,t_ss,t_
         sig_ss(2,:) = sig_ss(2,:) + A_dist(i)*sin(2*pi*f_hz(i)*t_lin_ss+p_off(i));
         sig_fs(2,:) = sig_fs(2,:) + A_dist(i)*sin(2*pi*f_hz(i)*t_lin_fs+p_off(i));
     end  
-end
-
-function [w_k, Bpara] = w_kiir_check(f_d,a_g,T_s,L)
-% T_s is the fast sampling rate
-k = 1:(L-1);
-m_d = max(size(f_d));
-Apara = 1; % defined as the coefficients for A(z) = 1 + a_1 z^-1 + ... + z^-2m
-Bpara = 1;
-for i = 1:m_d
-    Apara = conv(Apara,[1 -2*cos(f_d(i)*2*pi*T_s) 1]);
-    Bpara = conv(Bpara,[1 -2*a_g*cos(L*f_d(i)*2*pi*T_s) a_g^2]);
-end
-% conv returns as [1 z^-1 z^-2 ... z^-2m_d], returning 2m+1 terms
-%%%%%%%%% defining M_k and M_kt (t for tilde) %%%%%%%%%
-n_w = 2*m_d-1;
-m_kr = 2*m_d*L; % rows of M_kt
-m_kc = 2*m_d*(L-1); % columns of M_kt
-m_a = 2*m_d+1; % number of coefficients for A(z)
-M_kt = zeros(m_kr,m_kc);
-for i = 1:m_kc
-    M_kt(i:(i+m_a-1),i) = Apara';
-end
-
-% create row vectors for e_k with the kth row = 1
-E_k = zeros(m_kr,2*m_d);
-for i = 1:max(k)
-    for j = 1:2*m_d
-    E_k(i+L*(j-1),j,i) = 1;
-    end
-end
-
-% build M_k matrix, where there are k matrices nested within M_k
-M_k = zeros(m_kr,m_kr);
-for i = 1:max(k)
-M_k(:,1:m_kc,i) = M_kt;
-M_k(:,(m_kc+1):end,i) = E_k(:,:,i);
-end
-
-% the signal reconstruction is M_k * [f_vec w_vec]' = [a_vec 0]'
-% let us express this as Ax = b
-a_sol = -[Apara(2:end)'; zeros(m_kr-m_a+1,1)];
-a_size = size(a_sol);
-b_sol = zeros(a_size);
-for i = 1:2*m_d
-    b_sol(i*L) = Bpara(i+1);
-end
-
-for i = 1:max(k)
-    x_sol(:,i) = pinv(M_k(:,:,i))*(a_sol+b_sol);
-    f_max = 2*m_d*(L-1); % highest coefficient for F
-    w_max = m_kr - f_max-1; % highest coefficient for W based on f_max
-    f_k = x_sol(1:(m_kr-(n_w+1)),:);
-    w_k = x_sol((m_kr-n_w):end,:);
-end
 end
