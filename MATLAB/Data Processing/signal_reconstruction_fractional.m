@@ -15,7 +15,7 @@ f_ny_fs = 1/(2*t_fs); % fast sampling Nyquist freqquency
 f_ny_comb = 1/(2*t_ss/RL); % Nyquist frequency of the combined rate
 
 % simulation time and sin generator
-t_end = 10;
+t_end = 20;
 % generate signals for reconstruction'%
 % m_d = 7;
 % f_hz = sort(f_ny_ss+(f_ny_comb-f_ny_ss)*rand(1,m_d)); % generate random 
@@ -34,20 +34,28 @@ stairs(sig_ss(1,:),sig_ss(2,:))
 stairs(sig_fs(1,:),sig_fs(2,:))
 legend('CT','SS','FS')
 
-% input_signal = awgn(sig_ss(2,:),10,'measured');
+input_signal = awgn(sig_ss(2,:),10,'measured');
 % input_signal = sig_ss(2,:);
 
 y_est = multi_phase_recovery_fir(input_signal, f_hz, t_fs, t_end, R, L);
 
+x_lim = [11, 14];
+y_lim = [-1.5, 1.5];
 figure
 stairs(sig_ct(1,:),sig_ct(2,:))
 hold on
-stairs(y_est(1,:), y_est(2,:),'o')
+for i = 1:R
+    p = stairs(y_est(1,5-i:R:end), y_est(i+1,5-i:R:end),'o');
+    p.LineWidth = 1;
+    p.MarkerSize = 8;
+end
 % xlim([R^2 R^2+2*RL]*t_ss)
 xlabel('Time (sec)')
 ylabel('Output')
-legend('Ground Truth','Fractional Signal Recovery')
-title('Signal Recovery')
+xlim(x_lim)
+ylim(y_lim)
+legend('Ground Truth')
+title('Fractional Signal Recovery: FIR')
 
 %% test for IIR
 a_g = 0.9;
@@ -55,12 +63,29 @@ y_est_iir = multi_phase_recovery_iir(input_signal, f_hz, t_fs, t_end, a_g, R, L)
 figure
 stairs(sig_ct(1,:),sig_ct(2,:))
 hold on
-stairs(y_est_iir(1,:), y_est_iir(2,:),'o')
-% xlim([R^2 R^2+2*RL]*t_ss)
+for i = 1:R
+    p = stairs(y_est_iir(1,5-i:R:end), y_est_iir(i+1,5-i:R:end),'o');
+    p.LineWidth = 1;
+    p.MarkerSize = 8;
+end% xlim([R^2 R^2+2*RL]*t_ss)
 xlabel('Time (sec)')
 ylabel('Output')
-legend('Ground Truth','IIR Fractional Signal Recovery')
-title('Signal Recovery')
+xlim(x_lim)
+ylim(y_lim)
+legend('Ground Truth')
+title('Fractional Signal Recovery: IIR')
+
+figure
+stairs(sig_ss(1,:),sig_ss(2,:))
+hold on
+stairs(sig_ss(1,:),input_signal,'-o')
+xlabel('Time (sec)')
+ylabel('Output')
+xlim(x_lim)
+ylim(y_lim)
+legend('Ground Truth','Noisy Signal')
+title('Input Signal')
+
 
 
 %% MATLAB functions
@@ -240,14 +265,16 @@ function [out] = multi_phase_recovery_iir(input_signal, f_hz, t_s, t_end, a_g, R
 
     % preallocate output
     length_ss = length(input_signal);     % length of slow sampled output
-    out = zeros(2, (length_ss-1)*R*L+1);
+    % out = zeros(2, (length_ss-1)*R*L+1);
+    out = zeros(R+1, (length_ss-1)*R*L+1);
 
     % perform multiple signal recovery, offset by one slow sample
     for i = 1:R
         y_fcn = signal_recovery_iir(input_signal(i:end), f_hz, t_s, a_g, R, L);
         base_idx = (i-1)*R*L+1; % starting index
         idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
-        out(2,idx) = y_fcn;
+        % out(2,idx) = y_fcn;
+        out(1+i,idx) = y_fcn;
     end
     out(1,:) = 0:t_s/R:t_end;
 end
@@ -272,14 +299,16 @@ function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, R, L)
 %                : ... out(1,:) is the time, out(2,:) is the signal
     % preallocate output
     length_ss = length(input_signal);  % Length of the input signal
-    out = zeros(2,(length_ss-1)*R*L+1);
+    % out = zeros(2,(length_ss-1)*R*L+1);
+    out = zeros(R+1,(length_ss-1)*R*L+1);
 
     % perform multiple signal recovery, offset by one slow sample
     for i = 1:R
         y_fcn = signal_recovery_fir(input_signal(i:end), f_hz, t_s, R, L);
         base_idx = (i-1)*R*L+1; % starting index
         idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
-        out(2,idx) = y_fcn;
+        % out(2,idx) = y_fcn;
+        out(i+1,idx) = y_fcn;
     end
     out(1,:) = 0:t_s/R:t_end;
 end
