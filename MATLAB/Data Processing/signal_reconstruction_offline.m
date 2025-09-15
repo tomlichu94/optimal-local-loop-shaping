@@ -7,7 +7,7 @@ clear
 % input is 2.5V with a sin wave at 8 Hz.
 % noise is introduced into the "clean" measured data
 % Fast sampling here defined at 100 Hz, slow sampling at 10 Hz
-addpath('Functions','Experimental Runs')
+addpath('Functions','Experimental Runs\ALDSC')
 load run_8.mat
 
 % load data from encoder
@@ -109,6 +109,27 @@ s.LineStyle = ':';
 % s.Marker = 'o';
 hold off
 legend('FIR MMP','IIR MMP','Location','northeast')
+ax = gca;
+ax.FontSize= 12;
+ylabel('Error')
+xlabel('Time (sec)')
+ylim([-2 2])
+
+% plotting error between various alpha
+figure
+hold on
+for i = 1:3
+    s(i) = stairs(t_inter,err_IIR(i,:));
+end
+s(1).LineWidth = 1;
+s(2).LineWidth = 1.1;
+s(2).LineStyle = "--";
+s(3).LineWidth = 1.2;
+s(3).LineStyle = ":";
+s(1).Color = 'k';
+s(2).Color = 'b';
+s(3).Color = 'r';
+legend('\alpha = 0.3','\alpha = 0.5','\alpha = 0.9','Location','northeast')
 ax = gca;
 ax.FontSize= 12;
 ylabel('Error')
@@ -235,7 +256,7 @@ xlim([0,20])
 figure
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
-a=findobj(gca,'type','line')
+a = findobj(gca,'type','line');
 for i = 1:length(a)
     set(a(i),'markersize',8)
     set(a(i),'linewidth',1.5)
@@ -251,7 +272,7 @@ end
 for k = 3:3:k_length
     pzmap(W_k_IIR(3,k)) % plot zeros
     for i = 1:length(a)
-    a=findobj(gca,'type','line')
+    a = findobj(gca,'type','line');
     set(a(i),'markersize',8)
     set(a(i),'linewidth',1.5)
 end
@@ -291,7 +312,7 @@ figure
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
-a=findobj(gca,'type','line')
+a = findobj(gca,'type','line');
     for i = 1:length(a)
         set(a(i),'markersize',8)
         set(a(i),'linewidth',1.5)
@@ -301,7 +322,7 @@ hold on
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'b') % map of IIR-MMP poles
-a=findobj(gca,'type','line')
+a = findobj(gca,'type','line');
     for i = 1:length(a)
         set(a(i),'markersize',8)
         set(a(i),'linewidth',1.5)
@@ -310,7 +331,7 @@ a=findobj(gca,'type','line')
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,Bpara);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'r') % map of IIR-MMP poles
-a=findobj(gca,'type','line')
+a = findobj(gca,'type','line');
     for i = 1:length(a)
         set(a(i),'markersize',8)
         set(a(i),'linewidth',1.5)
