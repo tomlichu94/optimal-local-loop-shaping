@@ -324,7 +324,6 @@ Qcvx(1) = Qcvx_socp;
 Qcvx(2) = Qcvx_FIR;
 Qcvx(3) = Qcvx_IIR;
 
-return
 %% Simulation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 SimModel = 'main_SIM_MMP_IIR';

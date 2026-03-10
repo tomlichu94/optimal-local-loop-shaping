@@ -5,7 +5,7 @@ clc
 %% fractional signal reconstruction generalized
 
 % signal recovery parameters
-L = 5/3;
+L = 8/3;
 [R, den] = rat(1/L);
 RL = L*R; % scaling to make R*L an integer
 t_ss = 0.1;
@@ -22,6 +22,7 @@ t_end = 20;
 % A_hz = rand(1,m_d);
 % p_off = rand(1,m_d);
 f_hz = 8;
+f_mmp = 8.2;
 A_hz = 1;
 p_off = 0;
 
@@ -34,10 +35,10 @@ stairs(sig_ss(1,:),sig_ss(2,:))
 stairs(sig_fs(1,:),sig_fs(2,:))
 legend('CT','SS','FS')
 
-input_signal = awgn(sig_ss(2,:),10,'measured');
-% input_signal = sig_ss(2,:);
+% input_signal = awgn(sig_ss(2,:),10,'measured'); % noisy signal
+input_signal = sig_ss(2,:); % noiseless
 
-y_est = multi_phase_recovery_fir(input_signal, f_hz, t_fs, t_end, R, L);
+y_est = multi_phase_recovery_fir(input_signal, f_mmp, t_fs, t_end, R, L);
 
 x_lim = [11, 14];
 y_lim = [-1.5, 1.5];
@@ -58,8 +59,12 @@ legend('Ground Truth')
 title('Fractional Signal Recovery: FIR')
 
 %% test for IIR
-a_g = 0.9;
-y_est_iir = multi_phase_recovery_iir(input_signal, f_hz, t_fs, t_end, a_g, R, L);
+a_g = 0.2;
+
+% function for estimating the signal
+y_est_iir = multi_phase_recovery_iir(input_signal, f_mmp, t_fs, t_end, a_g, R, L);
+
+% plot signal recovery of the IIR
 figure
 stairs(sig_ct(1,:),sig_ct(2,:))
 hold on
@@ -75,6 +80,7 @@ ylim(y_lim)
 legend('Ground Truth')
 title('Fractional Signal Recovery: IIR')
 
+% input signal plot
 figure
 stairs(sig_ss(1,:),sig_ss(2,:))
 hold on
@@ -86,6 +92,39 @@ ylim(y_lim)
 legend('Ground Truth','Noisy Signal')
 title('Input Signal')
 
+% %
+% [W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(3,:,:)),B_para); % IIR TF coeff
+% for k = 1:k_length
+%         W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),T_fs);
+%         [mag_W_IIR, phi_W_IIR, w_out] = bode(W_k_IIR(k),w_in_rad);
+%         mag_W_IIR = 20*log10(mag_W_IIR(:));
+%         phi_W_IIR = wrapTo180(phi_W_IIR(:));
+%         h(k) = plot(w_in_Hz,mag_W_IIR);
+%         h(k).Color = [0.3 0.3 0.3];
+%         h(k).LineStyle = ':';
+%         h(k).LineWidth = 1.15;
+%         xlabel('Hz')
+%         ylabel('Magnitude (dB)')
+%         xlim(x_lim_PQ)
+% end
+% % plot disturbance frequency line
+% for i = 1:width(f_d)
+%     x_line = xline_default(f_d(i));
+%     x_line.Color = [0 0 0];
+%     x_line.LineWidth = 1;
+%     x_line.LineStyle = '--';
+% end
+% x_line.Label = strcat(num2str(f_in),{' '},'Hz');
+% x_line.LabelHorizontalAlignment = 'center';
+% x_line.LabelVerticalAlignment = 'bottom';
+% x_line = xline_default(f_ny);
+% x_line.Label = strcat(num2str(f_ny), {' '}, 'Hz');
+% x_line.LabelHorizontalAlignment = 'center';
+% x_line.LabelVerticalAlignment = 'bottom';
+% x_line.LineWidth = 1;
+% hold off
+% legend(Legend_bode)
+% xlim([0,20])
 
 
 %% MATLAB functions
