@@ -35,8 +35,8 @@ max_amp = 1; % max disturb amplitude
 PQ_max = 3; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
 f_stop = 600; % SOCP stop constraint past this frequency
-a_g_IIR = 0.95; % predictor alpha
-alpha = 0.95; % QIIR alpha
+a_g_IIR = 0.90; % predictor alpha
+alpha = 0.90; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Tsim = batches*150*Ts; %   simulation time

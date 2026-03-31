@@ -4,9 +4,9 @@
 
 % if time allows, comapre to the 2024 ACC paper
 %%%%%%%%%%%%%%%%%%%%%%%%%% load plant data %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-clear
-close all
-clc
+% clear
+% close all
+% clc
 
 addpath('Functions','Simulink','Data')
 load mainPlantData;
@@ -36,8 +36,8 @@ max_amp = 1; % max disturb amplitude
 PQ_max = 3; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
 f_stop = 600; % SOCP stop constraint past this frequency
-a_g_IIR = 0.95; % predictor alpha
-alpha = 0.95; % QIIR alpha
+a_g_IIR = 0.9; % predictor alpha
+alpha = 0.9; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%% narrow-band disturbance frequency %%%%%%%%%%%%%%%%%%%%
 % generates random multiplier for beyond Nyq freq of slow samlper
@@ -65,20 +65,20 @@ f_d = w_d/(2*pi*Tu); % disturbance in Hz
 p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
 A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
-%% ============== Predictor Coefficients and TF, W_k ======================
-[w_k] = W_coeff_FIR(L_t,f_d,Tu); % predictor coefficients
-[w_k_IIR, B_para] = W_coeff_IIR(L_t,f_d,a_g_IIR,Tu);
-[W_FIR_num, W_FIR_den] = W_TF_FIR(w_k);
-[W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_IIR,B_para);
+% ============== Predictor Coefficients and TF, W_k ======================
+[w_k_fir] = w_kfir_frac(f_d, Tu, 1, L_t); % predictor coefficients
+[w_k_iir, B_para] = w_kiir_frac(f_d, Tu, a_g_IIR, 1, L_t);
+[W_FIR_num, W_FIR_den] = W_TF_FIR(w_k_fir);
+[W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_iir,B_para);
 W_k_FIR(1,k_t) = tf(0);
-W_k_IIR(1,k_t) = tf(0);
+W_k_iir(1,k_t) = tf(0);
 
 for k = 1:k_t
     W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
-    W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
+    W_k_iir(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
 end
-
-%% ============== discrete set of frequencies ==========================
+%%
+% ============== discrete set of frequencies ==========================
 range_mult = 30;
 w_lin = w_lin_spacing(max_order,range_mult,tempW,L_t);
 w_lin_Hz = w_lin/(2*pi*Tu);
@@ -86,7 +86,7 @@ stop_indx = find(w_lin_Hz>f_stop);
 stop_indx = stop_indx(1);
 fprintf('Stop Constraint %u Hz \n',w_lin_Hz(stop_indx))
 
-%% %%%%%%%%%%%%%%%%%%%%%%%%% hdd model %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%% hdd model %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Ps_pade = pade(Ps,4); % pade approximation for delay term
 Ps_sys = ss(Ps_pade);
 Pz = absorbDelay(Pz_delay);
@@ -102,29 +102,12 @@ Pz_num = cell2mat(Pz.num);
 Pz_den = cell2mat(Pz.den);
 Pz_sys = ss(Pz); % used in Simulink
 
-%% %%%%%%%%%%%%%%%%%%%%%%%%% Q Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%% Q Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generalized Q(z) form is: Q(z) = Q0*Q_FIR or Q0*Q_IIR
-%%%%% using Q0 = 1-z^-1
-% Q0_num = [1 -1];
-% Q0_den = [1 0]; 
-% Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
 Q0_num = 1;
 Q0_den = 1;
-%%%%% using Q0 = 1+z^-1
-% Q0_num = [1 -1];
-% Q1_num = [1 1];
-% Q0_den = [1 0]; 
-% Q2_num = conv(Q0_num,Q1_num);
-% Q2_den = conv(Q0_den,Q0_den);
-% Q0 = tf(Q2_num,Q2_den,Tu);
-%%%%% using Q0 from Automatica
-% rho = 0.8;
-% Q0_num = q0(w_d,rho);
-% Q0_den = zeros(size(Q0_num));
-% Q0_den(1) = 1;
-% Q0 = tf(Q0_num,Q0_den,Tu);
 
-%% %%%%%%%%%%%%%%%%%%%%%%%%% PQ Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%% PQ Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 phi = tf(); % create phi = [1 z^-1 ... z^-r]
 phi(1) = 1;
 for i = 1:max_order
@@ -136,7 +119,7 @@ PQ0 = tf(PQ0_num,PQ0_den,Tu); % transfer function of Pz*Q0
 P_phi = PQ0*phi;
 PQ_d = freqresp(P_phi,exp(1j*w_d)); % sub in disturbance vals into P_phi
 
-%% SOCP implementation
+% SOCP implementation
 %%%%%%%%%%%%%%%%%%%% Quad implementation for PQ %%%%%%%%%%%%%%%%%%%%%%%%%%%
 phi_val = freqresp(phi,exp(1j*w_lin(1:length(w_lin))));
 phi_val = squeeze(phi_val);
@@ -167,12 +150,12 @@ cvx_begin
 cvx_end
 Qcvx_num = conv(Q0_num,q_vec');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
-Q_socp = tf(Qcvx_num,Qcvx_den,Tu);
-Q_socp = minreal(Q_socp);
-PQ_socp = minreal(Pz*Q_socp);
-T_socp = minreal(1-PQ_socp);
+Qcvx_socp = tf(Qcvx_num,Qcvx_den,Tu);
+Qcvx_socp = minreal(Qcvx_socp);
+PQ_socp = minreal(Pz*Qcvx_socp*W_k_FIR(1));
+T_socp = minreal(1-PQ_socp*W_k_FIR(1));
 
-%% QFIR SDP implementation
+% QFIR SDP implementation
 %%%%%%%%%%%%%%%%%%%%%%%%% FIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%%
 % state space realization of P(z)
 k_fir = size(PQ0_den,2);
@@ -227,10 +210,10 @@ Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
 Qcvx_FIR = tf(Qcvx_num,Qcvx_den,Tu);
 PQcvx_FIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_FIR_den = conv(Pz_den,Qcvx_den);
-PQcvx_FIR = tf(PQcvx_FIR_num,PQcvx_FIR_den,Tu);
-T_cvx_FIR = 1 - PQcvx_FIR;
+PQcvx_FIR = tf(PQcvx_FIR_num,PQcvx_FIR_den,Tu)*W_k_FIR(1);
+T_cvx_FIR = 1 - PQcvx_FIR*W_k_FIR(1);
 
-%% QIIR SDP implementation
+% QIIR SDP implementation
 %%%%%%%%%%%%%%%%%%%%%%%%%% IIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%
 [Fz_num, Fz_den] = F_notch(w_d,alpha);
 Fz = tf(Fz_num,Fz_den,Tu);
@@ -310,25 +293,24 @@ Qcvx_den = conv(Q0Fz1_den,[1 zeros(1,max_order)]);
 Qcvx_IIR = tf(Qcvx_num,Qcvx_den,Tu); % for Simulink
 PQcvx_IIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_IIR_den = conv(Pz_den,Qcvx_den);
-PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,Tu);
-T_cvx_IIR = 1 - PQcvx_IIR;
+PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,Tu)*W_k_FIR(1);
+T_cvx_IIR = 1 - PQcvx_IIR*W_k_FIR(1);
 
-%% bandpass baseline
+% bandpass baseline
 w_hz_d = w_d/(2*pi*Tu);
 B_bw = w_hz_d*0.2; % bandwidth
 [Q_bp, Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,Tu);
 PQ_bp = minreal(Pz*Q_bp);
 T_bp = 1-PQ_bp;
 
-%% Storing Qcvx terms
-Qcvx(1) = Q_socp;
+% Storing Qcvx terms
+Qcvx(1) = Qcvx_socp;
 Qcvx(2) = Qcvx_FIR;
 Qcvx(3) = Qcvx_IIR;
 
-%% =============== Plotting bode plots ==================================
+%% =============== Plotting ==================================
 % defining the frequency range to be plotted and axes limits
-close all
-clc
+
 w_in_Hz_end = 1/(2*Tu); % end of plotting for Nyq freq of the fast
 w_in_Hz = 1:1:w_in_Hz_end;
 w_in_rad = w_in_Hz*2*pi;
@@ -468,24 +450,30 @@ legend('Bandpass','SOCP:FIR', 'SDP:FIR','SDP:IIR','location','southwest')
 
 %% robustness analysis
 % derived T = PQW
-% T_fir(i) = f(Qfir,Wiir_{mmp,i})
-% T_iir(i) = f(Qiir,Wiir_{mmp,i})
+% T_fir(i) = f(Qfir,Wfir_{mmp,i})
+% T_iir(i) = f(Qiir,Wfir_{mmp,i})
 close all
 
-PQ_fir_num = conv(Pz_num, cell2mat(Qcvx_FIR.num));
-PQ_fir_den = conv(Pz_den, cell2mat(Qcvx_FIR.den));
-PQ_iir_num = conv(Pz_num, cell2mat(Qcvx_IIR.num));
-PQ_iir_den = conv(Pz_den, cell2mat(Qcvx_IIR.den));
+PQ_fir_num = conv(Pz_num, cell2mat(Qcvx(2).num));
+PQ_fir_den = conv(Pz_den, cell2mat(Qcvx(2).den));
+PQ_iir_num = conv(Pz_num, cell2mat(Qcvx(3).num));
+PQ_iir_den = conv(Pz_den, cell2mat(Qcvx(3).den));
 
 T_fir(1,3) = tf(0);
 T_iir(1,3) = tf(0);
+% % using PQW
+% for i = 1:3
+%     PQW_fir_num = conv(PQ_fir_num, cell2mat(W_k_IIR(i).num));
+%     PQW_fir_den = conv(PQ_fir_den, cell2mat(W_k_IIR(i).den));
+%     PQW_iir_num = conv(PQ_iir_num, cell2mat(W_k_IIR(i).num));
+%     PQW_iir_den = conv(PQ_iir_den, cell2mat(W_k_IIR(i).den));
+%     T_fir(i) = tf(PQW_fir_num, PQW_fir_den, Tu);
+%     T_iir(i) = tf(PQW_iir_num, PQW_iir_den, Tu);
+% end
+% using PQ
 for i = 1:3
-    PQW_fir_num = conv(PQ_fir_num, cell2mat(W_k_IIR(i).num));
-    PQW_fir_den = conv(PQ_fir_den, cell2mat(W_k_IIR(i).den));
-    PQW_iir_num = conv(PQ_iir_num, cell2mat(W_k_IIR(i).num));
-    PQW_iir_den = conv(PQ_iir_den, cell2mat(W_k_IIR(i).den));
-    T_fir(i) = tf(PQW_fir_num, 1, Tu);
-    T_iir(i) = tf(PQW_iir_num, 1, Tu);
+    T_fir(i) = tf(PQ_fir_num, PQ_fir_den, Tu);
+    T_iir(i) = tf(PQ_iir_num, PQ_iir_den, Tu);
 end
 
 for i = 1:3
@@ -522,6 +510,7 @@ mag1 = squeeze(mag1);
 for i = 1:3
     T_int_fir(2,i) = trapz(w_in_rad,mag1(i,:));
 end
+T_int_fir
 
 [mag2, phi, ~] = bode(T_iir,w_in_rad);
 mag2 = squeeze(mag2);
@@ -601,17 +590,51 @@ figure
     legend('S','T')
     xlabel('Hz')
     ylabel('Magnitude (dB)')
-    title('S vs T for Q-Fir')
+    title('S vs T for Q-FIR')
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1;
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_d(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.LineStyle = '--';
+    end
 
-
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_d(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.LineStyle = '--';
-end
+figure
+    [mag, phi, ~] = bode(S_iir(1),w_in_rad);
+    mag = 20*log10(squeeze(mag));
+    phi = wrapTo180(squeeze(phi));
+    h = semilogx(w_in_Hz,mag);
+    h.Color = color_cvx{1};
+    h.LineStyle = line_style{1};
+    h.LineWidth = 1.5;
+    hold on
+    [mag, phi, ~] = bode(T_iir(1),w_in_rad);
+    mag = 20*log10(squeeze(mag));
+    phi = wrapTo180(squeeze(phi));
+    h = semilogx(w_in_Hz,mag);
+    h.Color = color_cvx{2};
+    h.LineStyle = line_style{2};
+    h.LineWidth = 1.5;
+    hold off
+    ax = gca;
+    ax.FontSize= font_size;
+    xlim([1 2640])
+    legend('S','T')
+    xlabel('Hz')
+    ylabel('Magnitude (dB)')
+    title('S vs T for Q-IIR')
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1;
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_d(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.LineStyle = '--';
+    end
