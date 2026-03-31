@@ -35,8 +35,8 @@ max_amp = 1; % max disturb amplitude
 PQ_max = 3; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
 f_stop = 600; % SOCP stop constraint past this frequency
-a_g_IIR = 0.95; % predictor alpha
-alpha = 0.95; % QIIR alpha
+a_g_IIR = 0.90; % predictor alpha
+alpha = 0.90; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Tsim = batches*150*Ts; %   simulation time
@@ -319,7 +319,7 @@ PQcvx_IIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_IIR_den = conv(Pz_den,Qcvx_den);
 PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,Tu);
 T_cvx_IIR = 1 - PQcvx_IIR;
-return
+
 %% bandpass baseline
 w_hz_d = w_d/(2*pi*Tu);
 B_bw = w_hz_d*0.2; % bandwidth
@@ -951,3 +951,10 @@ for i_it = 1:8
 end
 h_inf = 1./h_inf;
 h_inf_db = 20*log10(h_inf);
+
+%% pole-zero map of T(z)
+
+for i_it = 1:8
+    figure
+    pzmap(T_all(i_it))
+end

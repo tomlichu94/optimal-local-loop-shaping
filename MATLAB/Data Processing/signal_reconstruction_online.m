@@ -35,6 +35,21 @@ y_norm_fs = y_encoder/peak_mean_fs;
 y_norm_ss = d_ss/peak_mean_ss;
 y_w = out_W.signals.values'/peak_mean_fs; % normalized
 
+figure
+s = stairs(t_encoder,y_norm_fs);
+s.Color = [0.4 0.4 0.4];
+s.LineWidth = 1.3;
+hold on
+s = stairs(t_ss,y_norm_ss);
+s.LineWidth = 1.3;
+s.Color = [0 0 0.65];
+s.Marker = '*';
+legend('Fast Sampled Signal','Slow Sampled Signal','Location','southeast')
+hold off
+ylabel('Normalized Enconder Count')
+xlabel('Time (sec)')
+xlim([3.45 3.75])
+ylim([-2 1.3])
 
 figure
 s = stairs(t_encoder,y_norm_fs);
@@ -59,7 +74,7 @@ s.Marker = 'o';
 s.MarkerSize = 7;
 s.Color = [1 0 0];
 s.LineStyle = ':';
-legend('Fast Sampled Signal','Slow Sampled Signal','FIR MMP','IIR MMP')
+legend('Fast Sampled Signal','Slow Sampled Signal','FIR MMP','IIR MMP','Location','southeast')
 hold off
 ylabel('Normalized Enconder Count')
 xlabel('Time (sec)')

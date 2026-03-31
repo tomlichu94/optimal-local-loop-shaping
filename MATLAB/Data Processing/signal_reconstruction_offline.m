@@ -26,7 +26,7 @@ snr = 5; % signal to noise ratio
 peak_mean = mean(findpeaks(out_p(2:end))); % find average peak value
 d_fs = out_p'/peak_mean; % normalize encoder to 1
 d_fs_noisy = awgn(d_fs,snr,'measured'); % create noise for data
-d_ss = d_fs_noisy(1:L:end); % slow sampled data
+d_ss_noisy = d_fs_noisy(1:L:end); % slow sampled data
 
 % signal reconstruction
 t_slow = in_W.time'; % simulation time, slow-sampled
@@ -37,7 +37,7 @@ d_est_iir = zeros(length(a_g),length(d_fs));
 [wk_fir] = w_k_fir(L,f_d,T_fs); % coefficients for FIR-MMP
 for k = 1:length(a_g) % find coeff for IIR-MMP for various alpha values
 [wk_iir, Bpara] = w_k_iir(L,f_d,a_g(k),T_fs); % coefficients for IIR-MMP
-[d_est_fir, d_est_iir(k,:)] = signal_recovery(wk_fir,wk_iir,Bpara,L,d_ss);
+[d_est_fir, d_est_iir(k,:)] = signal_recovery(wk_fir,wk_iir,Bpara,L,d_ss_noisy);
 end
 
 %% plotting signal reconstruction
@@ -50,7 +50,24 @@ s = stairs(t_fast,d_fs); % plot of true encoder
 s.Color = [0.4 0.4 0.4];
 s.LineWidth = 1;
 hold on
-s = stairs(t_fast,d_fs_noisy); % plot of noisy encoder
+s = stairs(t_slow,d_ss_noisy); % plot of noisy encoder
+s.LineWidth = 1;
+s.Color = [0 0 0.65];
+legend('True Signal','Noisy Signal','Location','southeast')
+ax = gca;
+ax.FontSize= 12;
+xlim(x_lim)
+ylim(y_lim)
+xlabel('Time (sec)')
+ylabel('Normalized Encoder Count')
+hold off
+
+figure
+s = stairs(t_fast,d_fs); % plot of true encoder
+s.Color = [0.4 0.4 0.4];
+s.LineWidth = 1;
+hold on
+s = stairs(t_slow,d_ss_noisy); % plot of noisy encoder
 s.LineWidth = 1;
 s.Color = [0 0 0.65];
 s = stairs(t_fast,d_est_fir); % plot of FIR-MMP
@@ -166,8 +183,8 @@ p = plot(rms_all,'-o');
 p.LineWidth = 1.5;
 txt = cell(1,4);
 for i = 1:4
-str = sprintf('%.3f',rms_all(i));
-txt{i} = cellstr(str);
+    str = sprintf('%.3f',rms_all(i));
+    txt{i} = cellstr(str);
 end
 text((1:4)+0.25,rms_all+0.1,txt);
 legend('','RMS Error')
