@@ -1,4 +1,4 @@
-function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, R, L)
+function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, L)
 % IIR-signal recovery using fractional-speeds, every Rth slow sample is
 % used since L is a fraction and L = num/R.
 % (e.g. fast sampling is 5/2 times faster than slow sampling)
@@ -14,30 +14,29 @@ function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, R, L)
 %
 % Output:
 %   out:         : output recoverd signal upsampled by L
-
-    RL = R * L;
+    [N_L, D_L] = rat(L);
     % find W_k coefficiets
-    [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L); % extract W_k coefficients
+    [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, L); % extract W_k coefficients
     
     % determine signal lengths for fast sampling
     length_ss = length(input_signal);
-    set_ss = 1:R:length_ss;
+    set_ss = 1:D_L:length_ss;
     length_set = length(set_ss) - 1;
-    length_fs = length_set*RL + 1;
+    length_fs = length_set*N_L + 1;
     out = zeros(1, length_fs); % preallocate recovered signal array
     n_w = height(w_kiir);
     n_ss = 1; % slow sample index counter
     
     % Create circular buffer for IIR reconstruction
-    buffer_indices = 2:RL:((n_w - 1) * RL + 2);
-    max_buffer_size = n_w * RL + 1;
+    buffer_indices = 2:N_L:((n_w - 1) * N_L + 2);
+    max_buffer_size = n_w * N_L + 1;
     d_buff = zeros(1, max_buffer_size); % fast signal buffer
     phi = zeros(1, n_w); % store past slow samples
 
     % signal recovery algorithm
     for n_fs = 1:length_fs
-        d_temp = input_signal((n_ss - 1) * R + 1);
-        k = mod(n_fs - 1, RL); % intersample point index
+        d_temp = input_signal((n_ss - 1) * D_L + 1);
+        k = mod(n_fs - 1, N_L); % intersample point index
         % Case 1: not enough slow samples
         if n_ss < n_w + 1
             if k == 0
@@ -48,7 +47,7 @@ function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, R, L)
                 out(n_fs) = 0;
             end
         % Case 2: enough for FIR
-        elseif n_ss >= n_w && n_ss < n_w + R
+        elseif n_ss >= n_w && n_ss < n_w + D_L
             if k == 0
                 phi = [d_temp, phi(1:end - 1)];
                 out(n_fs) = d_temp;

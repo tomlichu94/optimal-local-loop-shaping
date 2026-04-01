@@ -1,7 +1,7 @@
-function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, R, L)
-% FIR signal recovery, with R recoveries in tandem, increasing output ...
-% ... sampling rate by t_ss/(RL) 
-% R signal recoveries performend, each delayed by t_ss
+function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, L)
+% FIR signal recovery, with D_L recoveries in tandem, increasing output ...
+% ... sampling rate by t_ss/(N_L) 
+% N_L signal recoveries performend, each delayed by t_ss
 
 % Inputs:
 %   input_signal : row vec of slow sampled signal only
@@ -15,16 +15,17 @@ function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, R, L)
 % Output:
 %   out:         : output recoverd signal upsampled by RL ...
 %                : ... out(1,:) is the time, out(2,:) is the signal
+    [N_L, D_L] = rat(L);
     % preallocate output
     length_ss = length(input_signal);  % Length of the input signal
-    out = zeros(2,(length_ss-1)*R*L+1);
+    out = zeros(2,(length_ss-1)*N_L+1);
 
     % perform multiple signal recovery, offset by one slow sample
-    for i = 1:R
-        y_fcn = signal_recovery_fir(input_signal(i:end), f_hz, t_s, R, L);
-        base_idx = (i-1)*R*L+1; % starting index
-        idx = base_idx:R:base_idx+R*(length(y_fcn)-1); % indexed range
+    for i = 1:D_L
+        y_fcn = signal_recovery_fir(input_signal(i:end), f_hz, t_s, L);
+        base_idx = (i-1)*N_L+1; % starting index
+        idx = base_idx:D_L:base_idx+D_L*(length(y_fcn)-1); % indexed range
         out(2,idx) = y_fcn;
     end
-    out(1,:) = 0:t_s/R:t_end;
+    out(1,:) = 0:t_s/D_L:t_end;
 end

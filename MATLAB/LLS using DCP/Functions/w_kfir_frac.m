@@ -1,23 +1,17 @@
-function [w_kfir] = w_kfir_frac(f_hz, t_s, R, L)
+function [w_kfir] = w_kfir_frac(f_hz, t_s, L)
 % FIR-MMP coefficents ...
 % ... (e.g. fast sampling is 5/2 times faster than slow sampling)
 % Inputs:
 %   f_hz         : signal frequency to be recovered
 %   t_s         : fast sampling time
-%   R            : if t_ss = T_fs * L, ...
-%                  ... and L = num/den, den = R (num and den are integers)
 %   L            : upsampling factor
 %
 % Output:
 %   w_kfir       : outputs coefficients for signal recovery ...
 %                  ... 2m_d x (RL-1), where m is the number of frequencies
+    [N_L, D_L] = rat(L);
 
-    RL = R*L;
-    if mod(RL,1) ~= 0
-        error('RL must be an integer');
-    end
-
-    k_max = RL - 1;
+    k_max = N_L - 1;
     m_d = numel(f_hz);
 
     % Compute A(z) coefficients
@@ -30,8 +24,8 @@ function [w_kfir] = w_kfir_frac(f_hz, t_s, R, L)
     n_w = 2*m_d - 1;
 
     % Preallocate dimensions
-    m_k1 = 2*m_d * RL;
-    m_k2 = 2*m_d * (RL - 1);
+    m_k1 = 2*m_d * N_L;
+    m_k2 = 2*m_d * (N_L - 1);
 
     % Construct M_kt matrix
     M_kt = zeros(m_k1, m_k2);
@@ -46,7 +40,7 @@ function [w_kfir] = w_kfir_frac(f_hz, t_s, R, L)
     % Determine 1 location for each col of E_k
     for ki = 1:k_max
         for j = 1:2*m_d
-            row_idx = ki + RL*(j - 1);
+            row_idx = ki + N_L*(j - 1);
             E_k(row_idx, j, ki) = 1;
         end
         M_k(:, 1:m_k2, ki) = M_kt;

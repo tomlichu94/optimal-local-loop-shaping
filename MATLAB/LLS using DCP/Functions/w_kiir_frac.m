@@ -1,25 +1,19 @@
-function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L)
+function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, L)
 % IIR-MMP coefficents ...
 % ... (e.g. fast sampling is 5/2 times faster than slow sampling)
 % Inputs:
 %   f_hz         : signal frequency to be recovered
 %   t_s         : fast sampling time
 %   a_g          : bandwidth of the IIR signal recovery
-%   R            : if t_ss = T_fs * L, ...
-%                  ... and L = num/den, den = R (num and den are integers)
 %   L            : upsampling factor
 %
 % Output:
 %   w_kiir       : outputs coefficients for signal recovery ...
 %                  ... 2m_d x (RL-1), where m is the number of frequencies
 %   Bpara        : denominator coefficients of the IIR-MMP
+    [N_L, D_L] = rat(L);
 
-    RL = R*L;
-    if mod(RL,1) ~= 0
-        error('RL must be an integer')
-    end
-
-    k_max = RL-1; % max num of intersamples
+    k_max = N_L-1; % max num of intersamples
     m_d = numel(f_hz); % num of frequencies
     
     % finding coefficeints for A(z) and B(z), used in diophantine Eqn, ...
@@ -29,14 +23,14 @@ function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L)
     for i = 1:m_d
         omega = 2 * pi * f_hz(i) * t_s;
         Apara = conv(Apara,[1 -2*cos(omega) 1]);
-        Bpara = conv(Bpara,[1 -2*a_g*cos(RL*omega) a_g^2]); % output
+        Bpara = conv(Bpara,[1 -2*a_g*cos(N_L*omega) a_g^2]); % output
     end
     m_a = numel(Apara); % num of coeff for Apara
     n_w = 2* m_d - 1; % number of W coefficients starting from 0
 
     % preallocate dimensions
-    m_k1 = 2* m_d * RL; % rows of M_kt
-    m_k2 = 2* m_d * (RL-1); % columns of M_kt
+    m_k1 = 2* m_d * N_L; % rows of M_kt
+    m_k2 = 2* m_d * (N_L-1); % columns of M_kt
 
     % construct M_kt matrix (Toeplitz-like)
     M_kt = zeros(m_k1, m_k2);
@@ -51,7 +45,7 @@ function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L)
     % determine location of 1 for each col of E_k
     for ki = 1:k_max
         for j = 1:2*m_d
-            row_idx = ki + RL * (j - 1);
+            row_idx = ki + N_L * (j - 1);
             E_k(row_idx, j, ki) = 1;
         end
         M_k(:,1:m_k2, ki) = M_kt;
@@ -64,7 +58,7 @@ function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, R, L)
     a_size = size(a_sol);
     b_sol = zeros(a_size);
     for i = 1:2*m_d
-        b_sol(i*RL) = Bpara(i+1);
+        b_sol(i*N_L) = Bpara(i+1);
     end
 
     % finding w_k coefficients

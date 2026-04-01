@@ -12,15 +12,14 @@ T_fs = 1/Fs;
 T_fin = 20;
 a_g = 0.5;
 L = 25/2;
-R = 2;
-RL = R*L;
+[N_L, D_L] = rat(L);
 T_ss = T_fs*L;
-T_cs = T_fs/R;
+T_cs = T_fs/D_L;
 f_ny = 1/(2*T_ss);
 f_d = 7;
-f_in = 7.2;
-[wk_iir B_para] = w_kiir_frac(f_d, T_fs, a_g, R, L);
-[wk_fir] = w_kfir_frac(f_d, T_fs, R, L);
+f_in = 7;
+[wk_iir B_para] = w_kiir_frac(f_d, T_fs, a_g, L);
+[wk_fir] = w_kfir_frac(f_d, T_fs, L);
 
 %% online recovery, no noise. Run hardware, then export the data exporting data
 addpath('Experimental Runs\Fractional Recovery')
@@ -42,22 +41,22 @@ y_w2 = out_W2.signals.values'/peak_mean_fs; % normalized
 close all
 
 % recovery time
-t1 = t_lin_cs(1:R:end); % recovery 1
-t2 = t_lin_cs(2:R:end); % recovery 2
+t1 = t_lin_cs(1:D_L:end); % recovery 1
+t2 = t_lin_cs(2:D_L:end); % recovery 2
 
 % recovery signal
-y_fir_1 = y_w1(1,1:R:end); % FIR recovery 1
-y_fir_2 = y_w2(1,2:R:end); % FIR recovyer 2
-y_iir_1 = y_w1(2,1:R:end); % IIR recovery 1
-y_iir_2 = y_w2(2,2:R:end); % IIR recovery 2
+y_fir_1 = y_w1(1,1:D_L:end); % FIR recovery 1
+y_fir_2 = y_w2(1,2:D_L:end); % FIR recovyer 2
+y_iir_1 = y_w1(2,1:D_L:end); % IIR recovery 1
+y_iir_2 = y_w2(2,2:D_L:end); % IIR recovery 2
 
 % combined sampling of two recovery
 y_fir_cs = zeros(1, length(y_w1));
 y_iir_cs = zeros(1, length(y_w1));
-y_fir_cs(1:R:end) = y_fir_1; % fir combined sampling
-y_fir_cs(2:R:end) = y_fir_2;
-y_iir_cs(1:R:end) = y_iir_1; % iir combined sampling
-y_iir_cs(2:R:end) = y_iir_2; 
+y_fir_cs(1:D_L:end) = y_fir_1; % fir combined sampling
+y_fir_cs(2:D_L:end) = y_fir_2;
+y_iir_cs(1:D_L:end) = y_iir_1; % iir combined sampling
+y_iir_cs(2:D_L:end) = y_iir_2; 
 
 % plot of fast/slow sample with recovery 1 and 2, FIR
 x_lim = [16.12, 16.37];
@@ -144,14 +143,14 @@ ylim(y_lim)
 % post processing data
 snr = 5; % signal to noise ratio
 y_fs_noisy = awgn(y_norm_fs,snr,'measured'); % create noise for data
-y_ss_noisy = y_fs_noisy(1:RL:end); % slow sampled data
-y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, R, L);
+y_ss_noisy = y_fs_noisy(1:N_L:end); % slow sampled data
+y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, L);
 
 a_g = [0.3, 0.5, 0.9]; % alpha to adjust bandwidth of IIR-MMP
 length_cs = length(y_fir_noisy);
 y_iir_noisy = zeros(length(a_g),2,length_cs);
 for i = 1:length(a_g)
-    y_iir_noisy(i,:,:) = multi_phase_recovery_iir(y_ss_noisy, f_in, T_fs, T_fin, a_g(i), R, L);
+    y_iir_noisy(i,:,:) = multi_phase_recovery_iir(y_ss_noisy, f_in, T_fs, T_fin, a_g(i), L);
 end
 y_iir_noisy = squeeze(y_iir_noisy(:,2,:));
 
@@ -238,7 +237,7 @@ legend('','RMS Error')
 ylabel('Error')
 
 % bode plot options and setup
-k_tot = 1:(RL-1); % index of intersample points
+k_tot = 1:(N_L-1); % index of intersample points
 color_all = {[0 0 0], [0.9290 0.6940 0.1250], [0 1 0], [1 0 0]};
 line_style = {'-','--','--','-.',':'};
 w_in_Hz_end = 1/(2*T_fs); % Nyq freq of fast sampling
@@ -270,7 +269,7 @@ wk_iir = zeros(length(a_g),size(wk_fir,1),size(wk_fir,2));
 
 % IIR bode plot options
 for i = 1:length(a_g)
-    [wk_iir(i,:,:), B_para] = w_kiir_frac(f_in, T_fs, a_g(i), R, L); % iir coeff
+    [wk_iir(i,:,:), B_para] = w_kiir_frac(f_in, T_fs, a_g(i), L); % iir coeff
     [W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(i,:,:)),B_para);
     W_k_IIR = tf(W_IIR_num(k_idx,:),W_IIR_den(k_idx,:),T_fs); % IIR TF for k=1
     [mag_W_IIR, phi_W_IIR, w_out] = bode(W_k_IIR,w_in_rad); % IIR mag/deg vals
@@ -360,7 +359,7 @@ legend(Legend_pz,'Location','Best')
 
 % pzmap plot of FIR and IIR poles only
 figure
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(1), R, L); % coefficients for IIR-MMP
+[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(1), L); % coefficients for IIR-MMP
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
@@ -370,7 +369,7 @@ a = findobj(gca,'type','line');
         set(a(i),'linewidth',1.5)
     end
 hold on
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(2), R, L); % coefficients for IIR-MMP
+[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(2), L); % coefficients for IIR-MMP
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'b') % map of IIR-MMP poles
@@ -379,7 +378,7 @@ a = findobj(gca,'type','line');
         set(a(i),'markersize',8)
         set(a(i),'linewidth',1.5)
     end
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(3), R, L); % coefficients for IIR-MMP
+[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(3), L); % coefficients for IIR-MMP
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'r') % map of IIR-MMP poles
