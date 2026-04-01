@@ -17,7 +17,7 @@ T_ss = T_fs*L;
 T_cs = T_fs/D_L;
 f_ny = 1/(2*T_ss);
 f_d = 7;
-f_in = 7;
+f_in = 7.2;
 [wk_iir B_para] = w_kiir_frac(f_d, T_fs, a_g, L);
 [wk_fir] = w_kfir_frac(f_d, T_fs, L);
 
@@ -289,6 +289,7 @@ Legend_bode{5}='k = 2,...24';
 k_length = k_tot(end);
 % plotting intersamples of IIR-MMP for a = 0.9
 [W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(3,:,:)),B_para); % IIR TF coeff
+h = zeros(1,k_length);
 for k = 1:k_length
         W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),T_fs);
         [mag_W_IIR, phi_W_IIR, w_out] = bode(W_k_IIR(k),w_in_rad);
@@ -360,11 +361,7 @@ legend(Legend_pz,'Location','Best')
 % pzmap plot of FIR and IIR poles only
 figure
 [wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(1), L); % coefficients for IIR-MMP
-<<<<<<< Updated upstream
-[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-=======
 [~, W_IIR_den] = w_tf_iir(wk_iir,B_para);
->>>>>>> Stashed changes
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
 a = findobj(gca,'type','line');
@@ -374,11 +371,7 @@ a = findobj(gca,'type','line');
     end
 hold on
 [wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(2), L); % coefficients for IIR-MMP
-<<<<<<< Updated upstream
-[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-=======
 [~, W_IIR_den] = w_tf_iir(wk_iir,B_para);
->>>>>>> Stashed changes
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'b') % map of IIR-MMP poles
 a = findobj(gca,'type','line');
@@ -386,7 +379,7 @@ a = findobj(gca,'type','line');
         set(a(i),'markersize',8)
         set(a(i),'linewidth',1.5)
     end
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(3), L); % coefficients for IIR-MMP
+[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(3), D_L, L); % coefficients for IIR-MMP
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'r') % map of IIR-MMP poles
