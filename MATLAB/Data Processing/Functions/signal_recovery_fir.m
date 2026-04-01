@@ -8,18 +8,15 @@ function [out] = signal_recovery_fir(input_signal, f_hz, t_s, L)
 %   f_hz         : signal frequency to be recovered
 %   t_s          : fast sampling time
 %   a_g          : bandwidth of the IIR signal recovery
-<<<<<<< Updated upstream
 %   L            : upsampling factor
 %
 % Output:
 %   out:         : output recoverd signal upsampled by L
-=======
 %   L = N_L/D_L  : upsampling factor
 %
 % Output:
 %   out:         : output recoverd signal upsampled by L
     
->>>>>>> Stashed changes
     [N_L, D_L] = rat(L);
     % preallocate output
     length_fs = floor((length(input_signal)-1)*L)+1;
@@ -27,10 +24,7 @@ function [out] = signal_recovery_fir(input_signal, f_hz, t_s, L)
 
     % finding coefficients for FIR-MMP
     w_k = w_kfir_frac(f_hz, t_s, L);
-<<<<<<< Updated upstream
-    
-=======
->>>>>>> Stashed changes
+
     % signal recovery algorithm
     n_w = height(w_k); 
     phi = zeros(1, n_w); % store past slow samples

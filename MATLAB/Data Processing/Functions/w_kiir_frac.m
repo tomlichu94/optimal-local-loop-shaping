@@ -5,28 +5,16 @@ function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, L)
 %   f_hz         : signal frequency to be recovered
 %   t_s          : fast sampling time
 %   a_g          : bandwidth of the IIR signal recovery
-<<<<<<< Updated upstream
-%   L            : upsampling factor
-=======
 %   R            : if t_ss = T_fs * L, ...
 %                  ... and L = num/den, den = R (num and den are integers)
 %   L = N_L/D_L  : upsampling factor
->>>>>>> Stashed changes
 %
 % Output:
 %   w_kiir       : outputs coefficients for signal recovery ...
 %                  ... 2m_d x (RL-1), where m is the number of frequencies
 %   Bpara        : denominator coefficients of the IIR-MMP
-    [N_L, D_L] = rat(L);
 
-<<<<<<< Updated upstream
-=======
     [N_L, ~] = rat(L);
-    if mod(N_L,1) ~= 0
-        error('RL must be an integer')
-    end
-
->>>>>>> Stashed changes
     k_max = N_L-1; % max num of intersamples
     m_d = numel(f_hz); % num of frequencies
     

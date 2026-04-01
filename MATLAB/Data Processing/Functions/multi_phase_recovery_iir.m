@@ -1,7 +1,7 @@
 function [out] = multi_phase_recovery_iir(input_signal, f_hz, t_s, t_end, a_g, L)
-% IIR signal recovery, with R recoveries in tandem, increasing output ...
+% IIR signal recovery, with D_L recoveries in tandem, increasing output ...
 % ... sampling rate by t_ss/(N_L) 
-% R signal recoveries performend, each delayed by t_ss
+% D_L signal recoveries performend, each delayed by t_ss
 
 % Inputs:
 %   input_signal : row vec of slow sampled signal only
@@ -9,19 +9,13 @@ function [out] = multi_phase_recovery_iir(input_signal, f_hz, t_s, t_end, a_g, L
 %   t_s          : fast sampling time
 %   t_end        : end simulation time
 %   a_g          : bandwidth of the IIR signal recovery
-<<<<<<< Updated upstream
 %   L            : upsampling factor
-=======
 %   L = N_L/D_L  : upsampling factor
->>>>>>> Stashed changes
 %
 % Output:
 %   out:         : output recoverd signal upsampled by RL ...
 %                : ... out(1,:) is the time, out(2,:) is the signal
-<<<<<<< Updated upstream
-=======
-    
->>>>>>> Stashed changes
+
     [N_L, D_L] = rat(L);
     % preallocate output
     length_ss = length(input_signal);     % length of slow sampled output

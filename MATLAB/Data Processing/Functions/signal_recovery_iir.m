@@ -2,7 +2,6 @@ function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, L)
 % IIR-signal recovery using fractional-speeds, every Rth slow sample is
 % used since L is a fraction and L = num/R.
 % (e.g. fast sampling is 5/2 times faster than slow sampling)
-
 % Inputs:
 %   input_signal : row vec of slow sampled signal only
 %   f_hz         : signal frequency to be recovered
@@ -12,10 +11,7 @@ function out = signal_recovery_iir(input_signal, f_hz, t_s, a_g, L)
 %
 % Output:
 %   out:         : output recoverd signal upsampled by L
-<<<<<<< Updated upstream
-=======
-    
->>>>>>> Stashed changes
+
     [N_L, D_L] = rat(L);
     % find W_k coefficiets
     [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, L); % extract W_k coefficients

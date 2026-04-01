@@ -145,7 +145,6 @@ snr = 5; % signal to noise ratio
 y_fs_noisy = awgn(y_norm_fs,snr,'measured'); % create noise for data
 y_ss_noisy = y_fs_noisy(1:N_L:end); % slow sampled data
 y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, L);
-
 a_g = [0.3, 0.5, 0.9]; % alpha to adjust bandwidth of IIR-MMP
 length_cs = length(y_fir_noisy);
 y_iir_noisy = zeros(length(a_g),2,length_cs);
@@ -360,11 +359,8 @@ legend(Legend_pz,'Location','Best')
 % pzmap plot of FIR and IIR poles only
 figure
 [wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(1), L); % coefficients for IIR-MMP
-<<<<<<< Updated upstream
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-=======
 [~, W_IIR_den] = w_tf_iir(wk_iir,B_para);
->>>>>>> Stashed changes
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
 a = findobj(gca,'type','line');
@@ -374,11 +370,8 @@ a = findobj(gca,'type','line');
     end
 hold on
 [wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(2), L); % coefficients for IIR-MMP
-<<<<<<< Updated upstream
 [W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-=======
 [~, W_IIR_den] = w_tf_iir(wk_iir,B_para);
->>>>>>> Stashed changes
 W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'b') % map of IIR-MMP poles
 a = findobj(gca,'type','line');

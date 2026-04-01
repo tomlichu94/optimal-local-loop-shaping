@@ -1,14 +1,10 @@
 function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, L)
-<<<<<<< Updated upstream
 % FIR signal recovery, with D_L recoveries in tandem, increasing output ...
 % ... sampling rate by t_ss/(N_L) 
 % N_L signal recoveries performend, each delayed by t_ss
-=======
-% FIR signal recovery, with R recoveries in tandem, increasing output ...
-% ... sampling rate by t_ss/(RL) 
-% R signal recoveries performend, each delayed by t_ss
->>>>>>> Stashed changes
-
+% FIR signal recovery, with D_L recoveries in tandem, increasing output ...
+% ... sampling rate by t_ss/(D_L) 
+% D_L signal recoveries performend, each delayed by t_ss
 % Inputs:
 %   input_signal : row vec of slow sampled signal only
 %   f_hz         : signal frequency to be recovered
@@ -19,10 +15,7 @@ function [out] = multi_phase_recovery_fir(input_signal, f_hz, t_s, t_end, L)
 % Output:
 %   out:         : output recoverd signal upsampled by RL ...
 %                : ... out(1,:) is the time, out(2,:) is the signal
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
     [N_L, D_L] = rat(L);
     % preallocate output
     length_ss = length(input_signal);  % Length of the input signal
