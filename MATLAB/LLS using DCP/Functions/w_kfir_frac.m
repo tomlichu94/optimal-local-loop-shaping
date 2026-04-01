@@ -4,13 +4,14 @@ function [w_kfir] = w_kfir_frac(f_hz, t_s, L)
 % Inputs:
 %   f_hz         : signal frequency to be recovered
 %   t_s         : fast sampling time
-%   L            : upsampling factor
+%   t_s          : fast sampling time
+%   L = N_L/D_L  : upsampling factor
 %
 % Output:
 %   w_kfir       : outputs coefficients for signal recovery ...
 %                  ... 2m_d x (RL-1), where m is the number of frequencies
-    [N_L, D_L] = rat(L);
 
+    [N_L, ~] = rat(L);
     k_max = N_L - 1;
     m_d = numel(f_hz);
 
