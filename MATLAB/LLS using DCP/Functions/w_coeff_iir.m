@@ -1,12 +1,10 @@
-function [w_kiir, Bpara] = w_kiir_frac(f_hz, t_s, a_g, L)
+function [w_kiir, Bpara] = w_coeff_iir(f_hz, t_s, a_g, L)
 % IIR-MMP coefficents ...
 % ... (e.g. fast sampling is 5/2 times faster than slow sampling)
 % Inputs:
 %   f_hz         : signal frequency to be recovered
 %   t_s          : fast sampling time
 %   a_g          : bandwidth of the IIR signal recovery
-%   R            : if t_ss = T_fs * L, ...
-%                  ... and L = num/den, den = R (num and den are integers)
 %   L = N_L/D_L  : upsampling factor
 %
 % Output:

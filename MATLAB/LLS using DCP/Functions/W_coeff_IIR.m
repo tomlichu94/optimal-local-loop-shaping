@@ -1,58 +1,70 @@
-function [w_k Bpara] = W_coeff_IIR(L,f_d,a_g,T_s)
-% T_s is the fast sampling rate
-k = 1:(L-1);
-m_d = max(size(f_d));
-Apara = 1; % defined as the coefficients for A(z) = 1 + a_1 z^-1 + ... + z^-2m
-Bpara = 1;
-for i = 1:m_d
-    Apara = conv(Apara,[1 -2*cos(f_d(i)*2*pi*T_s) 1]);
-    Bpara = conv(Bpara,[1 -2*a_g*cos(L*f_d(i)*2*pi*T_s) a_g^2]);
-end
-% conv returns as [1 z^-1 z^-2 ... z^-2m_d], returning 2m+1 terms
-%%%%%%%%% defining M_k and M_kt (t for tilde) %%%%%%%%%
-n_w = 2*m_d-1;
-m_kr = 2*m_d*L; % rows of M_kt
-m_kc = 2*m_d*(L-1); % columns of M_kt
-m_a = 2*m_d+1; % number of coefficients for A(z)
-M_kt = zeros(m_kr,m_kc);
-for i = 1:m_kc
-    M_kt(i:(i+m_a-1),i) = Apara';
-end
+function [w_kiir, Bpara] = w_coeff_iir(f_hz, t_s, a_g, L)
+% IIR-MMP coefficents ...
+% ... (e.g. fast sampling is 5/2 times faster than slow sampling)
+% Inputs:
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   a_g          : bandwidth of the IIR signal recovery
+%   L = N_L/D_L  : upsampling factor
+%
+% Output:
+%   w_kiir       : outputs coefficients for signal recovery ...
+%                  ... 2m_d x (RL-1), where m is the number of frequencies
+%   Bpara        : denominator coefficients of the IIR-MMP
 
-% create row vectors for e_k with the kth row = 1
-E_k = zeros(m_kr,2*m_d);
-for i = 1:max(k)
-    for j = 1:2*m_d
-    E_k(i+L*(j-1),j,i) = 1;
+    [N_L, ~] = rat(L);
+    k_max = N_L-1; % max num of intersamples
+    m_d = numel(f_hz); % num of frequencies
+    
+    % finding coefficeints for A(z) and B(z), used in diophantine Eqn, ...
+    % ... where F(z)A(z) + z^{-k} W_{k}(z) - B(z) = 0
+    Apara = 1;
+    Bpara = 1;
+    for i = 1:m_d
+        omega = 2 * pi * f_hz(i) * t_s;
+        Apara = conv(Apara,[1 -2*cos(omega) 1]);
+        Bpara = conv(Bpara,[1 -2*a_g*cos(N_L*omega) a_g^2]); % output
     end
-end
+    m_a = numel(Apara); % num of coeff for Apara
+    n_w = 2* m_d - 1; % number of W coefficients starting from 0
 
-% build M_k matrix, where there are k matrices nested within M_k
-M_k = zeros(m_kr,m_kr);
-for i = 1:max(k)
-M_k(:,1:m_kc,i) = M_kt;
-M_k(:,(m_kc+1):end,i) = E_k(:,:,i);
-end
+    % preallocate dimensions
+    m_k1 = 2* m_d * N_L; % rows of M_kt
+    m_k2 = 2* m_d * (N_L-1); % columns of M_kt
 
-% the signal reconstruction is M_k * [f_vec w_vec]' = [a_vec 0]'
-% let us express this as Ax = b
-a_sol = -[Apara(2:end)'; zeros(m_kr-m_a+1,1)];
-a_size = size(a_sol);
-b_sol = zeros(a_size);
-for i = 1:2*m_d
-    b_sol(i*L) = Bpara(i+1);
-end
+    % construct M_kt matrix (Toeplitz-like)
+    M_kt = zeros(m_k1, m_k2);
+    for i = 1:m_k2
+        M_kt(i:i + m_a - 1, i) = Apara(:);
+    end
 
-for i = 1:max(k)
-    x_sol(:,i) = pinv(M_k(:,:,i))*(a_sol+b_sol);
-    f_max = 2*m_d*(L-1); % highest coefficient for F
-    w_max = m_kr - f_max-1; % highest coefficient for W based on f_max
-    f_k = x_sol(1:(m_kr-(n_w+1)),:);
-    w_k = x_sol((m_kr-n_w):end,:);
+    % preallocate E_k and M_k using 3D arrays, (3rd dim is for kth sample)
+    M_k = zeros(m_k1, m_k1, k_max);
+    E_k = zeros(m_k1, 2*m_d, k_max);
+    
+    % determine location of 1 for each col of E_k
+    for ki = 1:k_max
+        for j = 1:2*m_d
+            row_idx = ki + N_L * (j - 1);
+            E_k(row_idx, j, ki) = 1;
+        end
+        M_k(:,1:m_k2, ki) = M_kt;
+        M_k(:, m_k2 + 1:end, ki) = E_k(:, :, ki);
+    end
+
+    % the signal reconstruction is M_k * [f_vec w_vec]' = [a_vec 0]'
+    % let us express this as Ax = b, where the solution is x = inv(A)b
+    a_sol = -[Apara(2:end)'; zeros(m_k1 - m_a + 1,1)];
+    a_size = size(a_sol);
+    b_sol = zeros(a_size);
+    for i = 1:2*m_d
+        b_sol(i*N_L) = Bpara(i+1);
+    end
+
+    % finding w_k coefficients
+    x_sol = zeros(m_k1, k_max);
+    for i = 1:k_max
+        x_sol(:,i) = M_k(:,:,i) \ (a_sol+b_sol);
+    end
+    w_kiir = x_sol(end - n_w:end, :); % output
 end
-% if w_max <= n_w
-%     fprintf('Reconstruction is feasible\n')
-% else
-%     fprintf('Reconstruction unfeasible\n')
-%     return
-% end

@@ -1,51 +1,61 @@
-function [w_k] = W_coeff_FIR(L,f_d,T_s)
-% T_s is the fast sampling rate
-k = 1:(L-1);
-m_d = max(size(f_d));
-Apara = 1; % defined as the coefficients for A(z) = 1 + a_1 z^-1 + ... + z^-2m
-for i = 1:m_d
-    Apara = conv(Apara,[1 -2*cos(f_d(i)*2*pi*T_s) 1]);
-end
+function [w_kfir] = w_coeff_fir(f_hz, t_s, L)
+% FIR-MMP coefficents ...
+% ... (e.g. fast sampling is 5/2 times faster than slow sampling)
+% Inputs:
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   L = N_L/D_L  : upsampling factor
+%
+% Output:
+%   w_kfir       : outputs coefficients for signal recovery ...
+%                  ... 2m_d x (RL-1), where m is the number of frequencies
 
-%%%%%%%%% defining M_k and M_kt (t for tilde) %%%%%%%%%
-n_w = 2*m_d-1;
-m_k1 = 2*m_d*L; % rows of M_kt
-m_k2 = 2*m_d*(L-1); % columns of M_kt
-m_a = 2*m_d+1; % number of coefficients for A(z)
-M_kt = zeros(m_k1,m_k2);
-for i = 1:m_k2
-    M_kt(i:(i+m_a-1),i) = Apara';
-end
+    [N_L, ~] = rat(L);
+    k_max = N_L - 1;
+    m_d = numel(f_hz);
 
-% create row vectors for e_k with the kth row = 1
-E_k = zeros(m_k1,2*m_d);
-for i = 1:max(k)
-    for j = 1:2*m_d
-    E_k(i+L*(j-1),j,i) = 1;
+    % Compute A(z) coefficients
+    Apara = 1;
+    for i = 1:m_d
+        omega = 2 * pi * f_hz(i) * t_s;
+        Apara = conv(Apara, [1 -2*cos(omega) 1]);
     end
-end
+    m_a = numel(Apara);
+    n_w = 2*m_d - 1;
 
-% build M_k matrix, where there are k matrices nested within M_k
-M_k = zeros(m_k1,m_k1);
-for i = 1:max(k)
-M_k(:,1:m_k2,i) = M_kt;
-M_k(:,(m_k2+1):end,i) = E_k(:,:,i);
-end
+    % Preallocate dimensions
+    m_k1 = 2*m_d * N_L;
+    m_k2 = 2*m_d * (N_L - 1);
 
-% the signal reconstruction is M_k * [f_vec w_vec]' = [a_vec 0]'
-% let us express this as Ax = b
-a_sol = [-Apara(2:end)'; zeros(m_k1-m_a+1,1)];
+    % Construct M_kt matrix
+    M_kt = zeros(m_k1, m_k2);
+    for i = 1:m_k2
+        M_kt(i:i + m_a - 1, i) = Apara(:);
+    end
 
-for i = 1:max(k)
-    x_sol(:,i) = pinv(M_k(:,:,i))*a_sol;
-    f_max = 2*m_d*(L-1); % highest coefficient for F
-    w_max = m_k1 - f_max-1; % highest coefficient for W based on f_max
-    f_k = x_sol(1:(m_k1-(n_w+1)),:);
-    w_k = x_sol((m_k1-n_w):end,:);
+    % Preallocate E_k and M_k using 3D arrays
+    E_k = zeros(m_k1, 2*m_d, k_max);
+    M_k = zeros(m_k1, m_k1, k_max);
+
+    % Determine 1 location for each col of E_k
+    for ki = 1:k_max
+        for j = 1:2*m_d
+            row_idx = ki + N_L*(j - 1);
+            E_k(row_idx, j, ki) = 1;
+        end
+        M_k(:, 1:m_k2, ki) = M_kt;
+        M_k(:, m_k2 + 1:end, ki) = E_k(:, :, ki);
+    end
+
+    % Construct b vector
+    a_sol = [-Apara(2:end)'; zeros(m_k1 - m_a + 1, 1)];
+
+    % Solve least squares for each k
+    x_sol = zeros(m_k1, k_max);
+    for ki = 1:k_max
+        x_sol(:, ki) = M_k(:, :, ki) \ a_sol;  % faster than pinv
+    end
+
+    % output coefficients
+    w_kfir = x_sol(end - n_w:end, :);
 end
-% if w_max >= n_w
-%     fprintf('Reconstruction is feasible\n')
-% else
-%     fprintf('Reconstruction unfeasible\n')
-%     return
-% end

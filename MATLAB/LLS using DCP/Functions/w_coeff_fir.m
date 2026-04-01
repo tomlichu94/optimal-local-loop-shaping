@@ -1,9 +1,8 @@
-function [w_kfir] = w_kfir_frac(f_hz, t_s, L)
+function [w_kfir] = w_coeff_fir(f_hz, t_s, L)
 % FIR-MMP coefficents ...
 % ... (e.g. fast sampling is 5/2 times faster than slow sampling)
 % Inputs:
 %   f_hz         : signal frequency to be recovered
-%   t_s         : fast sampling time
 %   t_s          : fast sampling time
 %   L = N_L/D_L  : upsampling factor
 %
