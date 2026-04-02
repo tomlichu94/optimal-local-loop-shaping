@@ -72,10 +72,10 @@ p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
 A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
 %% ============== Predictor Coefficients and TF, W_k ======================
-[w_k] = W_coeff_FIR(L_t,f_d,Tu); % predictor coefficients
-[w_k_IIR, B_para] = W_coeff_IIR(L_t,f_d,a_g_IIR,Tu);
-[W_FIR_num, W_FIR_den] = W_TF_FIR(w_k);
-[W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_IIR,B_para);
+[w_k] = w_coeff_fir(f_d, Tu, L_t); % predictor coefficients
+[w_k_IIR, B_para] = w_coeff_iir(f_d, Tu, a_g_IIR, L_t);
+[W_FIR_num, W_FIR_den] = w_tf_fir(w_k);
+[W_IIR_num, W_IIR_den] = w_tf_iir(w_k_IIR,B_para);
 for k = 1:k_t
 W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
 W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
@@ -160,7 +160,7 @@ cvx_begin
         variables q_vec((max_order+1),1) b(length(w_lin),1)
         beta_sum = sum(b);
         for i = 1:length(w_lin)
-           quad_q(i) = quad_form(q_vec,quad(:,:,i));
+           quad_q(i) = quad_form(q_vec,(quad(:,:,i)+1e-8*eye(max_order+1)));
         end
         minimize beta_sum
         subject to
@@ -213,7 +213,7 @@ cvx_begin sdp
              B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
              zeros(1,M_size(1)), C_t, D_t, -rho]; 
         for i = 1:stop_indx
-             quad_q(i) = quad_form(q,quad(:,:,i));
+             quad_q(i) = quad_form(q,(quad(:,:,i)+1e-8*eye(max_order+1)));
         end
         minimize rho
         subject to
@@ -291,7 +291,7 @@ cvx_begin sdp
             B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
             zeros(1,M_size(1)), C_t, D_t, -rho];  
         for i = 1:stop_indx
-           quad_k(i) = quad_form(k,quad_IIR(:,:,i));
+           quad_k(i) = quad_form(k,(quad_IIR(:,:,i)+1e-8*eye(max_order+1)));
         end
         minimize rho 
         subject to
