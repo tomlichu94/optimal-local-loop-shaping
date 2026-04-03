@@ -52,7 +52,7 @@ Ts_CT_approx = T_ss/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 3;
+m_d = 2;
 tempW = zeros(1,m_d);
 for i = 1:(m_d) 
     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
