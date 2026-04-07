@@ -1,0 +1,30 @@
+function [out] = multi_phase_recovery_iir(input_signal, f_hz, t_s, t_end, a_g, L)
+% IIR signal recovery, with R recoveries in tandem, increasing output ...
+% ... sampling rate by t_ss/(N_L) 
+% R signal recoveries performend, each delayed by t_ss
+
+% Inputs:
+%   input_signal : row vec of slow sampled signal only
+%   f_hz         : signal frequency to be recovered
+%   t_s          : fast sampling time
+%   t_end        : end simulation time
+%   a_g          : bandwidth of the IIR signal recovery
+%   L            : upsampling factor
+%
+% Output:
+%   out:         : output recoverd signal upsampled by RL ...
+%                : ... out(1,:) is the time, out(2,:) is the signal
+    [N_L, D_L] = rat(L);
+    % preallocate output
+    length_ss = length(input_signal);     % length of slow sampled output
+    out = zeros(2, (length_ss-1)*N_L+1);
+
+    % perform multiple signal recovery, offset by one slow sample
+    for i = 1:D_L
+        y_fcn = signal_recovery_iir(input_signal(i:end), f_hz, t_s, a_g, L);
+        base_idx = (i-1)*N_L+1; % starting index
+        idx = base_idx:D_L:base_idx+D_L*(length(y_fcn)-1); % indexed range
+        out(2,idx) = y_fcn;
+    end
+    out(1,:) = 0:t_s/D_L:t_end;
+end

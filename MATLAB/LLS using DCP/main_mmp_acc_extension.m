@@ -30,21 +30,21 @@ L_t = 5/2; % sampling rate multilpier
 k_t = N_L - 1; % number of intersamples
 T_ss = T_fs*L_t; % slow sampling time
 T_cs = T_fs/D_L; % combined sampling time
-batches = 1000; % the number of cycles 
+batches = 1000*8; % the number of cycles 
 max_order = 30; % max filter order
 max_amp = 0.5; % max disturb amplitude
 
-PQ_max = 5; % max value of PQ for the quadratic constraint
+PQ_max = 10; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
 f_stop = 200; % SOCP stop constraint past this frequency
 a_mmp = 0.90; % predictor alpha
-a_q = 0.9; % QIIR alpha
+a_q = 0.90; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Tsim = batches*T_ss; %   simulation time
 simStepSize = T_ss/80; % simulation step size
 Ts_CT_approx = T_ss/20; % approximating continuous time sys
-[SensorNoise, ForceDist] = SetDisturbance(Tsim,T_ss,T_cs); % generate noise
+[SensorNoise, ForceDist] = SetDisturbance(Tsim,T_ss,T_fs); % generate noise
 
 %%%%%%%%%%%%%%%%%%%% narrow-band disturbance frequency %%%%%%%%%%%%%%%%%%%%
 % generates random multiplier for beyond Nyq freq of slow samlper
@@ -52,23 +52,27 @@ Ts_CT_approx = T_ss/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 2;
-tempW = zeros(1,m_d);
-for i = 1:(m_d) 
-    tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
-end
-% tempW = [1.4724 2.0279];
-% A_amp = [0.2, 0.1];
-% p_off = [0, 0];
-% tempW = [1.4724];
-% A_amp = [0.2];
-% p_off = [0];
-% tempW = [1.32 1.67 2.18];
+% m_d = 3;
+% tempW = zeros(1,m_d);
+% for i = 1:(m_d) 
+%     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
+% end
+
+% two run
+% tempW = [1.7179 2.1140];
+% A_amp = [0.2109, 0.4579];
+% p_off = [2.5142, 0.4457];
+
+% three run
+tempW = [1.1523, 1.5948, 2.0967];
+A_amp = [0.0754, 0.3489, 0.1892];
+p_off = [2.1433 0.9512 1.7017];
+
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
 f_hz = w_d/(2*pi*T_fs); % disturbance in Hz
-p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
-A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
+% p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
+% A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
 %% ============== Predictor Coefficients and TF, W_k ======================
 [mmp_fir_coeff] = w_coeff_fir(f_hz, T_fs, L_t); % predictor coefficients
@@ -99,7 +103,7 @@ Pz_num = cell2mat(Pz.num);
 Pz_den = cell2mat(Pz.den);
 Pz_sys = ss(Pz); % used in Simulink
 %%%%%%%%%%%%%%%%%%%%% Stabilizing controller %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-k_c = 0.05;
+k_c = 0.1;
 kp= 1/13320;
 ki= 1/33300;
 kd= 1/2775;
@@ -120,15 +124,15 @@ end
 % Q0_num = [1 -1];
 % Q0_den = [1 0]; 
 % Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
-Q0_num = 1;
-Q0_den = 1;
+% Q0_num = 1;
+% Q0_den = 1;
 %%%%% using Q0 = 1+z^-1
-% Q0_num = [1 -1];
-% Q1_num = [1 1];
-% Q0_den = [1 0]; 
-% Q2_num = conv(Q0_num,Q1_num);
-% Q2_den = conv(Q0_den,Q0_den);
-% Q0 = tf(Q2_num,Q2_den,Tu);
+Q0_num = [1 -1];
+Q1_num = [1 1];
+Q0_den = [1 0]; 
+Q2_num = conv(Q0_num,Q1_num);
+Q2_den = conv(Q0_den,Q0_den);
+Q0 = tf(Q2_num,Q2_den,T_fs);
 %%%%% using Q0 from Automatica
 % rho = 0.8;
 % Q0_num = q0(w_d,rho);
@@ -158,7 +162,7 @@ Pz_val = freqresp(PQ0,exp(1j*w_lin(1:length(w_lin))));
 Pz_val = squeeze(Pz_val)';
 Pz_2 = real(Pz_val).^2 + imag(Pz_val).^2;
 quad = zeros(max_order+1,max_order+1,length(w_lin));
-q_sigma = (1e-9)*eye(max_order+1);
+q_sigma = (1e-8)*eye(max_order+1);
 for i = 1:length(w_lin)
     quad(:,:,i) = Pz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
                   Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
@@ -345,15 +349,16 @@ Qcvx(3) = Qcvx_IIR;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % baseline comparison with feedback only and bandpass DOB
-% SimModelBase = 'main_mmp_frac_baseline';
-% [SimOutBase] = sim(SimModelBase,'StopTime','Tsim','FixedStep','simStepSize');
-% y_base_fs = SimOutBase.y_fs.signals.values;
-% y_base_ss = SimOutBase.y_ss.signals.values;
-% t_base_fs = SimOutBase.y_fs.time;
-% t_base_ss = SimOutBase.y_ss.time;
-y0_fs = zeros(2,Tsim/T_fs+1);
-y0_ss = zeros(2,Tsim/T_ss+1);
-mmp0 = zeros(2,Tsim/T_fs+1);
+SimModelBase = 'main_mmp_frac_baseline';
+[SimOutBase] = sim(SimModelBase,'StopTime','Tsim','FixedStep','simStepSize');
+y_base_fs = SimOutBase.y_fs.signals.values;
+y_base_ss = SimOutBase.y_ss.signals.values;
+y_base_mmp = SimOutBase.mmp_base.signals.values;
+t_base_fs = SimOutBase.y_fs.time;
+t_base_ss = SimOutBase.y_ss.time;
+% y0_fs = zeros(2,Tsim/T_fs+1);
+% y0_ss = zeros(2,Tsim/T_ss+1);
+% mmp0 = zeros(2,Tsim/T_fs+1);
 
 % simulation using optimization
 % preallocate output sizes
@@ -381,9 +386,9 @@ end
 
 d_out = d_sim_fs';
 
-% y0_fs = y_base_fs(:,2:3)'; % fast output for q_bp using w_fir and w_iir
-% y0_ss = y_base_ss(:,2:3)'; % slow output for q_bp
-% mmp0 = y_base_fs(:,2)'; % output of mmp for Q_bp using w_iir
+y0_fs = y_base_fs(:,2:3)'; % fast output for q_bp using w_fir and w_iir
+y0_ss = y_base_ss(:,2:3)'; % slow output for q_bp
+mmp0 = y_base_mmp(:,1)'; % output of mmp for Q_bp using w_iir
 
 y1_fs = y_sim_fs(:,:,1)'; % output for q_socp
 y2_fs = y_sim_fs(:,:,2)'; % output for q_fir
@@ -586,8 +591,8 @@ fprintf('RMS of Q-IIR, W-IIR: %d\n',rms(y3_fs(2,:)));
 % y2: Q_fir
 % y3: Q_iir
 % y#(1,:):w_fir, y#(2,:):w_iir
-y_out_lim = [-6 6];
-x_lim = [0.16 0.2];
+y_out_lim = [-8 8];
+x_lim = [0.18 0.2];
 size_mark = 6;
 l_width2 = 1;
 
@@ -876,6 +881,15 @@ for i = 1:4
 end
 ax = gca;
 ax.FontSize= font_size;
+x_line = xline(Nyq_Hz);
+x_line.Color = [0 0 0];
+x_line.LineWidth = 1.5;
+x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+x_line.LabelOrientation = 'aligned';
+x_line.LabelVerticalAlignment = 'bottom';
+x_line.LabelHorizontalAlignment = 'center';
+x_line.FontSize = 10;
+x_line.FontWeight = 'bold';
 for i = 1:m_d
 x_line = xline(f_hz(i));
 x_line.Color = [0 0 0];
@@ -903,6 +917,15 @@ for i = 1:4
     h(i+4).LineStyle = line_style{i};
     h(i+4).LineWidth = 1.5;
 end
+x_line = xline(Nyq_Hz);
+x_line.Color = [0 0 0];
+x_line.LineWidth = 1.5;
+x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+x_line.LabelOrientation = 'aligned';
+x_line.LabelVerticalAlignment = 'bottom';
+x_line.LabelHorizontalAlignment = 'center';
+x_line.FontSize = 10;
+x_line.FontWeight = 'bold';
 for i = 1:m_d
 x_line = xline(f_hz(i));
 x_line.Color = [0 0 0];
@@ -931,6 +954,15 @@ h(i+8) = semilogx(w_in_Hz,mag(i+4,:));
 h(i+8).LineStyle = line_style{i};
 h(i+8).LineWidth = 1.5;
 end
+x_line = xline(Nyq_Hz);
+x_line.Color = [0 0 0];
+x_line.LineWidth = 1.5;
+x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+x_line.LabelOrientation = 'aligned';
+x_line.LabelVerticalAlignment = 'bottom';
+x_line.LabelHorizontalAlignment = 'center';
+x_line.FontSize = 10;
+x_line.FontWeight = 'bold';
 for i = 1:m_d
 x_line = xline(f_hz(i));
 x_line.Color = [0 0 0];
@@ -1012,8 +1044,9 @@ h_inf = 1./h_inf;
 h_inf_db = 20*log10(h_inf);
 
 %% pole-zero map of T(z)
-
-for i_it = 1:8
-    figure
-    pzmap(T_all(i_it))
-end
+figure
+bode(Ps)
+% for i_it = 1:8
+%     figure
+%     pzmap(T_all(i_it))
+% end
