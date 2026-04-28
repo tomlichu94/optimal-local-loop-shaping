@@ -25,7 +25,7 @@ z = tf('z',T_fs); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-L_t = 5/2; % sampling rate multilpier
+L_t = 2; % sampling rate multilpier
 [N_L, D_L] = rat(L_t); % fractional integer scaling
 k_t = N_L - 1; % number of intersamples
 T_ss = T_fs*L_t; % slow sampling time
@@ -64,9 +64,12 @@ Ts_CT_approx = T_ss/20; % approximating continuous time sys
 % p_off = [2.5142, 0.4457];
 
 % three run
-tempW = [1.1523, 1.5948, 2.0967];
-A_amp = [0.0754, 0.3489, 0.1892];
-p_off = [2.1433 0.9512 1.7017];
+% tempW = [1.1523, 1.5948, 2.0967];
+% A_amp = [0.0754, 0.3489, 0.1892];
+% p_off = [2.1433 0.9512 1.7017];
+tempW = [1.7];
+A_amp = 1;
+p_off = 0;
 
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
@@ -121,18 +124,18 @@ end
 %% %%%%%%%%%%%%%%%%%%%%%%%%% Q Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generalized Q(z) form is: Q(z) = Q0*Q_FIR or Q0*Q_IIR
 %%%%% using Q0 = 1-z^-1
-% Q0_num = [1 -1];
-% Q0_den = [1 0]; 
-% Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
+Q0_num = [1 -1];
+Q0_den = [1 0]; 
+Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
 % Q0_num = 1;
 % Q0_den = 1;
 %%%%% using Q0 = 1+z^-1
-Q0_num = [1 -1];
-Q1_num = [1 1];
-Q0_den = [1 0]; 
-Q2_num = conv(Q0_num,Q1_num);
-Q2_den = conv(Q0_den,Q0_den);
-Q0 = tf(Q2_num,Q2_den,T_fs);
+% Q0_num = [1 -1];
+% Q1_num = [1 1];
+% Q0_den = [1 0]; 
+% Q2_num = conv(Q0_num,Q1_num);
+% Q2_den = conv(Q0_den,Q0_den);
+% Q0 = tf(Q2_num,Q2_den,T_fs);
 %%%%% using Q0 from Automatica
 % rho = 0.8;
 % Q0_num = q0(w_d,rho);
@@ -425,21 +428,21 @@ n_all = 4;
 
 % =================== W Predictor Bode =================================
 [mag_W_IIR1, phi_W_IIR1, ~] = bode(W_k_iir(1),w_in_rad);
-[mag_W_IIR2, phi_W_IIR2, ~] = bode(W_k_iir(2),w_in_rad);
+% [mag_W_IIR2, phi_W_IIR2, ~] = bode(W_k_iir(2),w_in_rad);
 mag_W_IIR1 = 20*log10(mag_W_IIR1(:));
 phi_W_IIR1 = wrapTo180(phi_W_IIR1(:));
-mag_W_IIR2 = 20*log10(mag_W_IIR2(:));
-phi_W_IIR2 = wrapTo180(phi_W_IIR2(:));
+% mag_W_IIR2 = 20*log10(mag_W_IIR2(:));
+% phi_W_IIR2 = wrapTo180(phi_W_IIR2(:));
 
 figure()
 subplot(2,1,1)
-semilogx(w_in_Hz,mag_W_IIR1,w_in_Hz,mag_W_IIR2);
+semilogx(w_in_Hz,mag_W_IIR1,w_in_Hz,mag_W_IIR1);
 xlabel('Hz')
 ylabel('Magnitude (dB)')
 xlim([1 x_lim_loop(end)])
 title('W Predictor Bode')
 subplot(2,1,2)
-semilogx(w_in_Hz,phi_W_IIR1,w_in_Hz,phi_W_IIR2);
+semilogx(w_in_Hz,phi_W_IIR1,w_in_Hz,phi_W_IIR1);
 hold off
 xlabel('Hz')
 ylabel('Phase (deg.)')

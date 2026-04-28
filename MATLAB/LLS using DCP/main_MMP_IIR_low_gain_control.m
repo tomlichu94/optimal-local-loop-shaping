@@ -99,9 +99,11 @@ Pz_sys = ss(Pz); % used in Simulink
 %% %%%%%%%%%%%%%%%%%%%%%%%%% Q Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generalized Q(z) form is: Q(z) = Q0*Q_FIR or Q0*Q_IIR
 %%%%% using Q0 = 1-z^-1
-Q0_num = [1 -1];
-Q0_den = [1 0]; 
-Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
+% Q0_num = [1 -1];
+% Q0_den = [1 0]; 
+% Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
+Q0_num = 1;
+Q0_den = 1;
 %%%%% using Q0 = 1+z^-1
 % Q0_num = [1 -1];
 % Q1_num = [1 1];
