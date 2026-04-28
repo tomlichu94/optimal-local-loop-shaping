@@ -156,7 +156,7 @@ for i = 1:length(w_lin)
     quad(:,:,i) = Pz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
                       Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
 end
-cvx_begin
+cvx_begin quiet
         variables q_vec((max_order+1),1) b(length(w_lin),1)
         beta_sum = sum(b);
         for i = 1:length(w_lin)
@@ -171,6 +171,8 @@ cvx_begin
                 quad_q(i) <= b(i)
             end
 cvx_end
+fprintf('SOCP: %s\n',cvx_status)
+
 Qcvx_num = conv(Q0_num,q_vec');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
 Qcvx_socp = tf(Qcvx_num,Qcvx_den,Tu);
@@ -198,7 +200,7 @@ B_q(end) = 1;
 zero_mat = zeros(size(A_p,1),size(A_q,2));
 M_size = size(A_p)+size(A_q);
 clear quad_q q
-cvx_begin sdp
+cvx_begin quiet sdp
         variables q((max_order+1),1) rho
         variable M(M_size) symmetric
         C_q = [flip(q(2:end))]';
@@ -226,6 +228,7 @@ cvx_begin sdp
             L_cvx <= 0;
             rho >= 0;
 cvx_end
+fprintf('SDP-FIR: %s\n',cvx_status)
 
 % Q filter construction
 Qcvx_num = conv(Q0_num,q');
@@ -275,7 +278,7 @@ B_k(end) = 1;
 zero_mat = zeros(size(A_h,1),size(A_k,2));
 M_size = size(A_h)+size(A_k);
 clear rho M L_cvx
-cvx_begin sdp
+cvx_begin quiet sdp
         variables k((max_order+1),1) rho
         variable M(M_size) symmetric
         C_k = [flip(k(2:end))]';
@@ -304,6 +307,7 @@ cvx_begin sdp
             L_cvx <= 0;
             rho >= 0;
 cvx_end
+fprintf('SDP-IIR: %s\n',cvx_status)
 
 % QIIR filter, QIIR = Q0*(1-Fz)*Kcvx_IIR
 Fz1 = (1-Fz);
