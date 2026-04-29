@@ -30,7 +30,7 @@ L_t = 5/2; % sampling rate multilpier
 k_t = N_L - 1;
 Ts = Tu*L_t; % slow sampling time
 T_cs = Tu/D_L;
-batches = 220; % the number of cycles 
+batches = 1000*8; % the number of cycles 
 max_order = 30; % max filter order
 max_amp = 1; % max disturb amplitude
 
@@ -41,7 +41,7 @@ a_g_IIR = 0.90; % predictor alpha
 alpha = 0.95; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Tsim = batches*150*Ts; %   simulation time
+Tsim = batches*Ts; %   simulation time
 simStepSize = T_cs/20; % simulation step size
 Ts_CT_approx = T_cs/20; % approximating continuous time sys
 [SensorNoise, ForceDist] = SetDisturbance(Tsim,Ts,Tu); % generate noise
@@ -52,20 +52,13 @@ Ts_CT_approx = T_cs/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 3;
-tempW = zeros(1,m_d);
-for i = 1:(m_d) 
-    tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
-end
+% m_d = 3;
+% tempW = zeros(1,m_d);
+% for i = 1:(m_d) 
+%     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
+% end
 
-% general test results
-% L = 3;
-% tempW = [1.337 1.739 2.312 2.618]; % okay, bad robustness
-% tempW = [1.32 1.67 1.93 2.18]; % good run
-% tempW = [1.4482 1.7411 2.0070 2.8114]; % okay, mid robustness
-% tempW = [0.23 0.56 0.8];
-% L_t = 3;
-% tempW = [1.7178 2.0072 2.9787 3.5073];
+tempW = [1.32 1.67 1.93 2.18]; % good run
 
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
@@ -146,6 +139,7 @@ end
 
 %% SOCP implementation
 %%%%%%%%%%%%%%%%%%%% Quad implementation for PQ %%%%%%%%%%%%%%%%%%%%%%%%%%%
+q_sigma = (1e-8)*eye(max_order+1);
 phi_val = freqresp(phi,exp(1j*w_lin(1:length(w_lin))));
 phi_val = squeeze(phi_val);
 phi_r = real(phi_val);
@@ -162,7 +156,7 @@ cvx_begin quiet
         variables q_vec((max_order+1),1) b(length(w_lin),1)
         beta_sum = sum(b);
         for i = 1:length(w_lin)
-           quad_q(i) = quad_form(q_vec,(quad(:,:,i)+1e-8*eye(max_order+1)));
+           quad_q(i) = quad_form(q_vec,(quad(:,:,i)+q_sigma));
         end
         minimize beta_sum
         subject to
@@ -217,7 +211,7 @@ cvx_begin quiet sdp
              B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
              zeros(1,M_size(1)), C_t, D_t, -rho]; 
         for i = 1:stop_indx
-             quad_q(i) = quad_form(q,(quad(:,:,i)+1e-8*eye(max_order+1)));
+             quad_q(i) = quad_form(q,(quad(:,:,i)+q_sigma));
         end
         minimize rho
         subject to
@@ -296,7 +290,7 @@ cvx_begin quiet sdp
             B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
             zeros(1,M_size(1)), C_t, D_t, -rho];  
         for i = 1:stop_indx
-           quad_k(i) = quad_form(k,(quad_IIR(:,:,i)+1e-8*eye(max_order+1)));
+           quad_k(i) = quad_form(k,(quad_IIR(:,:,i)+q_sigma));
         end
         minimize rho 
         subject to
@@ -329,6 +323,77 @@ T_cvx_IIR = 1 - PQcvx_IIR;
 Qcvx(1) = Qcvx_socp;
 Qcvx(2) = Qcvx_FIR;
 Qcvx(3) = Qcvx_IIR;
+
+%% bandpass baseline
+w_hz_d = w_d/(2*pi*Tu);
+B_bw = w_hz_d*0.2; % bandwidth
+[Q_bp, Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,Tu);
+PQ_bp = minreal(Pz*Q_bp);
+T_bp = 1-PQ_bp;
+
+%% Simulation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% baseline comparison with feedback only and bandpass DOB
+% SimModelBase = 'main_sim_generalized_base';
+% [SimOutBase] = sim(SimModelBase,'StopTime','Tsim','FixedStep','simStepSize');
+% y_base_fs = SimOutBase.y_fs.signals.values;
+% y_base_ss = SimOutBase.y_ss.signals.values;
+% y_base_mmp = SimOutBase.mmp_base.signals.values;
+% t_base_fs = SimOutBase.y_fs.time;
+% t_base_ss = SimOutBase.y_ss.time;
+% y0_fs = zeros(2,Tsim/T_fs+1);
+% y0_ss = zeros(2,Tsim/T_ss+1);
+% mmp0 = zeros(2,Tsim/T_fs+1);
+
+% simulation using optimization
+% preallocate output sizes
+% d_sim_fs = zeros(Tsim/T_fs+1,3);
+% y_sim_fs = zeros(Tsim/T_fs+1,2,3);
+% y_sim_ss = zeros(Tsim/T_ss+1,2,3);
+% y_sim_mmp = zeros(Tsim/T_fs+1,2,3);
+
+Qcvx_sim = Qcvx(3);
+
+SimModel = 'main_sim_generalized';
+[SimOut] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
+return
+
+for i = 1:3
+    Qcvx_sim = Qcvx(i);
+    [SimOut] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
+    d_sim_fs(:,i) = SimOut.dist.signals.values;
+    y_sim_fs(:,:,i) = SimOut.y_fs.signals.values;
+    y_sim_ss(:,:,i) = SimOut.y_ss.signals.values;
+    y_sim_mmp(:,:,i) = SimOut.mmp.signals.values;
+    t_sim_fs = SimOut.y_fs.time;
+    t_sim_ss = SimOut.y_ss.time;
+end
+
+%% storing values from Simulink
+% y0: Q_bp
+% y1: Q_socp
+% y2: Q_fir
+% y3: Q_iir
+% y#(1):w_fir, y#(2):w_iir
+
+d_out = d_sim_fs';
+
+y0_fs = y_base_fs(:,2:3)'; % fast output for q_bp using w_fir and w_iir
+y0_ss = y_base_ss(:,2:3)'; % slow output for q_bp
+mmp0 = y_base_mmp(:,1)'; % output of mmp for Q_bp using w_iir
+
+y1_fs = y_sim_fs(:,:,1)'; % output for q_socp
+y2_fs = y_sim_fs(:,:,2)'; % output for q_fir
+y3_fs = y_sim_fs(:,:,3)'; % output for q_iir
+
+y1_ss = y_sim_ss(:,:,1)'; % slow output for q_socp
+y2_ss = y_sim_ss(:,:,2)'; % output for q_fir
+y3_ss = y_sim_ss(:,:,3)'; % output for q_iir
+
+mmp1 = y_sim_mmp(:,:,1)'; % output of mmp for q_socp
+mmp2 = y_sim_mmp(:,:,2)'; % output of mmp for q_fir
+mmp3 = y_sim_mmp(:,:,3)'; % output of mmp for q_iir
+
 
 %% Simulation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
