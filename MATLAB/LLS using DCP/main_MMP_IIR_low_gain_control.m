@@ -25,9 +25,11 @@ z = tf('z',Tu); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-L_t = 4; % sampling rate multilpier
-k_t = L_t - 1;
+L_t = 5/2; % sampling rate multilpier
+[N_L, D_L] = rat(L_t);
+k_t = N_L - 1;
 Ts = Tu*L_t; % slow sampling time
+T_cs = Tu/D_L;
 batches = 220; % the number of cycles 
 max_order = 30; % max filter order
 max_amp = 1; % max disturb amplitude
@@ -40,8 +42,8 @@ alpha = 0.95; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Tsim = batches*150*Ts; %   simulation time
-simStepSize = Ts/80; % simulation step size
-Ts_CT_approx = Ts/20; % approximating continuous time sys
+simStepSize = T_cs/20; % simulation step size
+Ts_CT_approx = T_cs/20; % approximating continuous time sys
 [SensorNoise, ForceDist] = SetDisturbance(Tsim,Ts,Tu); % generate noise
 
 %%%%%%%%%%%%%%%%%%%% narrow-band disturbance frequency %%%%%%%%%%%%%%%%%%%%
@@ -50,16 +52,16 @@ Ts_CT_approx = Ts/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-% m_d = 3;
-% tempW = zeros(1,m_d);
-% for i = 1:(m_d) 
-%     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
-% end
+m_d = 3;
+tempW = zeros(1,m_d);
+for i = 1:(m_d) 
+    tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
+end
 
 % general test results
 % L = 3;
 % tempW = [1.337 1.739 2.312 2.618]; % okay, bad robustness
-tempW = [1.32 1.67 1.93 2.18]; % good run
+% tempW = [1.32 1.67 1.93 2.18]; % good run
 % tempW = [1.4482 1.7411 2.0070 2.8114]; % okay, mid robustness
 % tempW = [0.23 0.56 0.8];
 % L_t = 3;
