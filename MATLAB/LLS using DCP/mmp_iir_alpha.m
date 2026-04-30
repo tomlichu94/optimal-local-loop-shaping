@@ -57,8 +57,8 @@ f_d = w_d/(2*pi*Tu); % disturbance in Hz
 %% ============== Predictor Coefficients and TF, W_k ======================
 [w_k] = W_coeff_FIR(L_t,f_d,Tu); % predictor coefficients
 [w_k_IIR, B_para] = W_coeff_IIR(L_t,f_d,a_g_IIR,Tu);
-[W_FIR_num, W_FIR_den] = W_TF_FIR(w_k);
-[W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_IIR,B_para);
+[W_FIR_num, W_FIR_den] = w_tf_fir(w_k);
+[W_IIR_num, W_IIR_den] = w_tf_iir(w_k_IIR,B_para);
 for k = 1:k_t
     W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
     W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
@@ -161,7 +161,7 @@ B_q(end) = 1;
 M_size = size(A_p)+size(A_q);
 zero_mat = zeros(size(A_p,1),size(A_q,2));
 clear quad_q q
-cvx_begin sdp
+cvx_begin quiet sdp
         variables q((max_order+1),1) rho
         variable M(M_size) symmetric
         C_q = [flip(q(2:end))]';
