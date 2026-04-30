@@ -31,12 +31,13 @@ k_t = N_L - 1;
 T_ss = T_fs*L_t; % slow sampling time
 T_cs = T_fs/D_L;
 batches = 1000*4; % the number of cycles 
-max_order = 30; % max filter order
-max_amp = 1; % max disturb amplitude
 
-PQ_max = 8; % max value of PQ for the quadratic constraint
+m_d = 4; % number of disturbances
+max_order = 40; % max filter order
+max_amp = 1; % max disturb amplitude
+PQ_max = 4; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 200; % SOCP stop constraint past this frequency
+f_stop = 400; % SOCP stop constraint past this frequency
 a_mmp = 0.90; % MMP alpha
 a_Q = 0.90; % QIIR alpha
 
@@ -52,7 +53,6 @@ Ts_CT_approx = T_cs/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 3;
 tempW = zeros(1,m_d);
 for i = 1:(m_d) 
     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
@@ -98,6 +98,7 @@ Pz_sys = ss(Pz); % used in Simulink
 Q0_num = [1 -1];
 Q0_den = [1 0]; 
 Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
+
 %%%%% using Q0 = 1+z^-1
 % Q0_num = [1 -1];
 % Q1_num = [1 1];
@@ -105,6 +106,7 @@ Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
 % Q2_num = conv(Q0_num,Q1_num);
 % Q2_den = conv(Q0_den,Q0_den);
 % Q0 = tf(Q2_num,Q2_den,Tu);
+
 %%%%% using Q0 from Automatica
 % rho = 0.8;
 % Q0_num = q0(w_d,rho);
@@ -116,13 +118,14 @@ Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
 phi = tf(); % create phi = [1 z^-1 ... z^-r]
 phi(1) = 1;
 for i = 1:max_order
-phi(i+1) = z^(-i);
+    phi(i+1) = z^(-i);
 end
 PQ0_num = conv(Pz_num,Q0_num);
 PQ0_den = conv(Pz_den,Q0_den);
 PQ0 = tf(PQ0_num,PQ0_den,T_fs); % transfer function of Pz*Q0
 P_phi = PQ0*phi;
 PQ_d = freqresp(P_phi,exp(1j*w_d)); % sub in disturbance vals into P_phi
+
 %%%%%%%%%%%%%%%%%%%%% Stabilizing controller %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 k_c = 0.1;
 kp= 1/13320;
@@ -170,6 +173,7 @@ cvx_begin quiet
 cvx_end
 fprintf('SOCP: %s\n',cvx_status)
 
+% filter
 Qcvx_num = conv(Q0_num,q_vec');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
 Qcvx_socp = tf(Qcvx_num,Qcvx_den,T_fs);
@@ -196,6 +200,7 @@ B_q = zeros(max_order,1);
 B_q(end) = 1;
 zero_mat = zeros(size(A_p,1),size(A_q,2));
 M_size = size(A_p)+size(A_q);
+
 clear quad_q q
 cvx_begin quiet sdp
         variables q((max_order+1),1) rho
@@ -265,9 +270,9 @@ C_h = flip(H_num(2:end));
 B_h = zeros(k_iir-1,1);
 B_h(end) = 1;
 D_h = [H_num(1)];
-
 Hz_phi = Hz*phi;
 HK_d = freqresp(Hz_phi,exp(1j*w_d));
+
 % bounded real lemma setup
 A_k = zeros(max_order,max_order);
 A_k(1:(end-1),2:end) = eye(max_order-1,max_order-1);
@@ -332,17 +337,14 @@ T_bp = 1-PQ_bp;
 %% Simulation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % baseline comparison with feedback only and bandpass DOB
-% Qcvx_sim = Q_bp;
-% SimModel = 'main_sim_generalized_base';
-% [SimOutBase] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
-% y_base_fs = SimOutBase.y_fs.signals.values;
-% y_base_ss = SimOutBase.y_ss.signals.values;
-% y_base_mmp = SimOutBase.mmp_base.signals.values;
-% t_base_fs = SimOutBase.y_fs.time;
-% t_base_ss = SimOutBase.y_ss.time;
-% y0_fs = zeros(2,Tsim/T_fs+1);
-% y0_ss = zeros(2,Tsim/T_ss+1);
-% mmp0 = zeros(2,Tsim/T_fs+1);
+Qcvx_sim = Q_bp;
+SimModel = 'main_sim_generalized_base';
+[SimOutBase] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
+y_base_fs = SimOutBase.y_fs.signals.values;
+y_base_ss = SimOutBase.y_ss.signals.values;
+y_base_mmp = SimOutBase.mmp_base.signals.values;
+t_base_fs = SimOutBase.y_fs.time;
+t_base_ss = SimOutBase.y_ss.time;
 
 % preallocate output sizes
 d_sim_fs = zeros(Tsim/T_fs+1,3);
@@ -372,12 +374,12 @@ end
 d_out = d_sim_fs';
 
 % if baseline fails due to stability
-y0_fs = zeros(2,Tsim/T_fs+1);
-y0_ss = zeros(2,Tsim/T_ss+1);
-mmp0 = zeros(2,Tsim/T_fs+1);
-% y0_fs = y_base_fs(:,2:3)'; % fast output for q_bp using w_fir and w_iir
-% y0_ss = y_base_ss(:,2:3)'; % slow output for q_bp
-% mmp0 = y_base_mmp(:,1)'; % output of mmp for Q_bp using w_iir
+% y0_fs = zeros(2,Tsim/T_fs+1);
+% y0_ss = zeros(2,Tsim/T_ss+1);
+% mmp0 = zeros(2,Tsim/T_fs+1);
+y0_fs = y_base_fs(:,2:3)'; % fast output for q_bp using w_fir and w_iir
+y0_ss = y_base_ss(:,2:3)'; % slow output for q_bp
+mmp0 = y_base_mmp(:,1)'; % output of mmp for Q_bp using w_iir
 
 y1_fs = y_sim_fs(:,:,1)'; % output for q_socp
 y2_fs = y_sim_fs(:,:,2)'; % output for q_fir
@@ -467,71 +469,71 @@ phi_PQ_socp = wrapTo180(phi_PQ_socp(:));
 % ======================== PQ plots =====================================
 figure()
 subplot(2,1,1)
-h = semilogx(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
+    h = semilogx(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
               w_in_Hz,mag_PQ_FIR,w_in_Hz,mag_PQ_IIR);
-set(h,'linewidth',l_width);
-hold on
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-    x_line = xline(f_hz(i));
+    set(h,'linewidth',l_width);
+    hold on
+    x_line = xline(Nyq_Hz);
     x_line.Color = [0 0 0];
-    x_line.LineWidth = 1;
-    x_line.LineStyle = '--';
-end
-xlim(x_lim_loop);
-ylim(y_lim);
-xlabel('Hz')
-ylabel('dB')
-title('Magnitude of PQ')
-ax = gca;
-ax.FontSize= font_size;
-for i = 1:n_all
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-end
-hold off
+    x_line.LineWidth = 1.5;
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.LineStyle = '--';
+    end
+    xlim(x_lim_loop);
+    ylim(y_lim);
+    xlabel('Hz')
+    ylabel('dB')
+    title('Magnitude of PQ')
+    ax = gca;
+    ax.FontSize= font_size;
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    hold off
 
 % ============================ 1-PQ plots ===========================
 subplot(2,1,2)
-h = semilogx(w_in_Hz,mag_T_bp,w_in_Hz,mag_T_socp, ...
-              w_in_Hz,mag_T_FIR,w_in_Hz,mag_T_IIR);
-set(h,'linewidth',l_width);
-hold on
-x_line = xline(Nyq_Hz);
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.FontWeight = 'bold';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'left';
-for i = 1:size(w_d,2)
-    x_line = xline(f_hz(i));
+    h = semilogx(w_in_Hz,mag_T_bp,w_in_Hz,mag_T_socp, ...
+                w_in_Hz,mag_T_FIR,w_in_Hz,mag_T_IIR);
+    set(h,'linewidth',l_width);
+    hold on
+    x_line = xline(Nyq_Hz);
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
     x_line.Color = [0 0 0];
-    x_line.LineWidth = 1;
-    x_line.Label = sprintf('%.f Hz',f_hz(i));
-    x_line.LabelHorizontalAlignment = 'left';
-    x_line.LabelOrientation = 'aligned';
-    x_line.LabelVerticalAlignment = 'Bottom';
-    x_line.FontSize = 10;
-    x_line.LineStyle = '--';
+    x_line.LineWidth = 1.5;
     x_line.FontWeight = 'bold';
-end
-xlim(x_lim_loop);
-ylim(y_lim);
-xlabel('Hz')
-ylabel('dB')
-title('Magnitude 1-PQ')
-ax = gca;
-ax.FontSize= font_size;
-for i = 1:n_all
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-end
-legend('Bandpass','SOCP:FIR', 'SDP:FIR','SDP:IIR','location','southwest')
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'left';
+    for i = 1:size(w_d,2)
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelHorizontalAlignment = 'left';
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'Bottom';
+        x_line.FontSize = 10;
+        x_line.LineStyle = '--';
+        x_line.FontWeight = 'bold';
+    end
+    xlim(x_lim_loop);
+    ylim(y_lim);
+    xlabel('Hz')
+    ylabel('dB')
+    title('Magnitude 1-PQ')
+    ax = gca;
+    ax.FontSize= font_size;
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    legend('Bandpass','SOCP:FIR', 'SDP:FIR','SDP:IIR','location','southwest')
 
 % ================== Error ==========================================
 err_mmp_base = abs(d_out(1,:)-mmp0);
@@ -587,75 +589,75 @@ size_mark = 6;
 l_width2 = 1;
 
 figure()
-h(1) = stairs(t_sim_fs,y0_fs(2,:));
-hold on
-h(2) = stairs(t_sim_fs,y1_fs(1,:));
-h(3) = stairs(t_sim_fs,y1_fs(2,:));
-hold off
-title('Output Position, Fast')
-legend('Bandpass - W:IIR','SOCP - W:FIR','SOCP - W:IIR','location','southeast')
-ax = gca;
-ax.FontSize= font_size;
-xlim(x_lim)
-ylim([-10 10]);
-xlabel('Time (sec)')
-ylabel('Magnitude')
-set(h,'linewidth',l_width);
-
-for i = 1:3
-    h(i).Color = color_base{i};
-    h(i).MarkerSize = size_mark;
-    h(i).LineWidth = l_width2;
-end
-
-figure()
-h(1) = stairs(t_sim_ss,y2_ss(1,:));
-hold on
-h(2) = stairs(t_sim_ss,y2_ss(2,:));
-h(3) = stairs(t_sim_ss,y3_ss(1,:));
-h(4) = stairs(t_sim_ss,y3_ss(2,:));
-hold off
-legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
-title('Output Position, Slow')
-ax = gca;
-ax.FontSize= font_size;
-xlim(x_lim)
-ylim(y_out_lim);
-xlabel('Time (sec)')
-ylabel('Magnitude')
-set(h,'linewidth',l_width);
-for i = 1:n_all
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-    h(i).Marker = marker_style{i};
-    h(i).MarkerSize = size_mark;
-    h(i).LineWidth = l_width2;
-end
+    h(1) = stairs(t_sim_fs,y0_fs(2,:));
+    hold on
+    h(2) = stairs(t_sim_fs,y1_fs(1,:));
+    h(3) = stairs(t_sim_fs,y1_fs(2,:));
+    hold off
+    title('Output Position, Fast')
+    legend('Bandpass - W:IIR','SOCP - W:FIR','SOCP - W:IIR','location','southeast')
+    ax = gca;
+    ax.FontSize= font_size;
+    xlim(x_lim)
+    ylim([-10 10]);
+    xlabel('Time (sec)')
+    ylabel('Magnitude')
+    set(h,'linewidth',l_width);
+    for i = 1:3
+        h(i).Color = color_base{i};
+        h(i).MarkerSize = size_mark;
+        h(i).LineWidth = l_width2;
+    end
 
 figure()
-h(1) = stairs(t_sim_fs,y2_fs(1,:));
-hold on
-h(2) = stairs(t_sim_fs,y2_fs(2,:));
-h(3) = stairs(t_sim_fs,y3_fs(1,:));
-h(4) = stairs(t_sim_fs,y3_fs(2,:));
-hold off
-title('Output Position, Fast')
-legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
-ax = gca;
-ax.FontSize= font_size;
-xlim(x_lim)
-ylim(y_out_lim);
-xlabel('Time (sec)')
-ylabel('Magnitude')
-set(h,'linewidth',l_width);
-for i = 1:n_all
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-    h(i).Marker = marker_style{i};
-    h(i).MarkerSize = size_mark;
-    h(i).LineWidth = l_width2;
-end
+    h(1) = stairs(t_sim_ss,y2_ss(1,:));
+    hold on
+    h(2) = stairs(t_sim_ss,y2_ss(2,:));
+    h(3) = stairs(t_sim_ss,y3_ss(1,:));
+    h(4) = stairs(t_sim_ss,y3_ss(2,:));
+    hold off
+    legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
+    title('Output Position, Slow')
+    ax = gca;
+    ax.FontSize= font_size;
+    xlim(x_lim)
+    ylim(y_out_lim);
+    xlabel('Time (sec)')
+    ylabel('Magnitude')
+    set(h,'linewidth',l_width);
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+        h(i).Marker = marker_style{i};
+        h(i).MarkerSize = size_mark;
+        h(i).LineWidth = l_width2;
+    end
 
+figure()
+    h(1) = stairs(t_sim_fs,y2_fs(1,:));
+    hold on
+    h(2) = stairs(t_sim_fs,y2_fs(2,:));
+    h(3) = stairs(t_sim_fs,y3_fs(1,:));
+    h(4) = stairs(t_sim_fs,y3_fs(2,:));
+    hold off
+    title('Output Position, Fast')
+    legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
+    ax = gca;
+    ax.FontSize= font_size;
+    xlim(x_lim)
+    ylim(y_out_lim);
+    xlabel('Time (sec)')
+    ylabel('Magnitude')
+    set(h,'linewidth',l_width);
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+        h(i).Marker = marker_style{i};
+        h(i).MarkerSize = size_mark;
+        h(i).LineWidth = l_width2;
+    end
+
+% spectral plots
 spec_Qsocp_fir = specCal(y1_fs(1,:),1/T_fs);
 spec_Qsocp_iir = specCal(y1_fs(2,:),1/T_fs);
 spec_QFIR_FIR = specCal(y2_fs(1,:),1/T_fs);
@@ -664,121 +666,121 @@ spec_QIIR_FIR = specCal(y3_fs(1,:),1/T_fs);
 spec_QIIR_IIR = specCal(y3_fs(2,:),1/T_fs);
 
 figure()
-h(1) = semilogy(spec_Qsocp_fir.f,spec_Qsocp_fir.amp);
-hold on
-h(2) = semilogy(spec_Qsocp_iir.f,spec_Qsocp_iir.amp);
-ax = gca;
-ax.FontSize= font_size;
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-xlim([spec_Qsocp_fir.f(1) spec_Qsocp_fir.f(end)])
-ylabel('Magnitude')
-xlabel('Hz')
-legend('W:FIR','W:IIR','location','southeast')
-title('Y output for SOCP filters')
-for i = 1:2
-    h(i).Color = color_base{i+1};
-    h(i).LineStyle = line_style{i};
-end
-set(h,'linewidth',1);
-hold off
+    h(1) = semilogy(spec_Qsocp_fir.f,spec_Qsocp_fir.amp);
+    hold on
+    h(2) = semilogy(spec_Qsocp_iir.f,spec_Qsocp_iir.amp);
+    ax = gca;
+    ax.FontSize= font_size;
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    xlim([spec_Qsocp_fir.f(1) spec_Qsocp_fir.f(end)])
+    ylabel('Magnitude')
+    xlabel('Hz')
+    legend('W:FIR','W:IIR','location','southeast')
+    title('Y output for SOCP filters')
+    for i = 1:2
+        h(i).Color = color_base{i+1};
+        h(i).LineStyle = line_style{i};
+    end
+    set(h,'linewidth',1);
+    hold off
 
 figure()
-h(1) = semilogy(spec_QFIR_FIR.f,spec_QFIR_FIR.amp);
-hold on
-h(2) = semilogy(spec_QFIR_IIR.f,spec_QFIR_IIR.amp);
-ax = gca;
-ax.FontSize= font_size;
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
-ylabel('Magnitude')
-xlabel('Hz')
-legend('W:FIR','W:IIR','location','southeast')
-title('Y output for SDP:FIR filters')
-for i = 1:2
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-end
-set(h,'linewidth',1);
-hold off
+    h(1) = semilogy(spec_QFIR_FIR.f,spec_QFIR_FIR.amp);
+    hold on
+    h(2) = semilogy(spec_QFIR_IIR.f,spec_QFIR_IIR.amp);
+    ax = gca;
+    ax.FontSize= font_size;
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
+    ylabel('Magnitude')
+    xlabel('Hz')
+    legend('W:FIR','W:IIR','location','southeast')
+    title('Y output for SDP:FIR filters')
+    for i = 1:2
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    set(h,'linewidth',1);
+    hold off
 
 figure()
-h(3) = semilogy(spec_QIIR_FIR.f,spec_QIIR_FIR.amp);
-hold on
-h(4) = semilogy(spec_QIIR_IIR.f,spec_QIIR_IIR.amp);
-ax = gca;
-ax.FontSize= font_size;
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
-ylabel('Magnitude')
-xlabel('Hz')
-legend('W:FIR','W:IIR','location','southeast')
-title('Y output for SDP:IIR filters')
-for i = 3:4
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-end
-set(h,'linewidth',1);
-hold off
+    h(3) = semilogy(spec_QIIR_FIR.f,spec_QIIR_FIR.amp);
+    hold on
+    h(4) = semilogy(spec_QIIR_IIR.f,spec_QIIR_IIR.amp);
+    ax = gca;
+    ax.FontSize= font_size;
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
+    ylabel('Magnitude')
+    xlabel('Hz')
+    legend('W:FIR','W:IIR','location','southeast')
+    title('Y output for SDP:IIR filters')
+    for i = 3:4
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    set(h,'linewidth',1);
+    hold off
 
 % mmp0 = y_base_fast(:,2)'; % output of mmp for Q_bp using w_iir
 % mmp1 = y_mmp(:,:,1)'; % output of mmp for q_socp
@@ -792,42 +794,42 @@ spec_y_MMP_QI_FIR = specCal(mmp3(1,:),1/T_fs);
 spec_y_MMP_QI_IIR = specCal(mmp3(2,:),1/T_fs);
 
 figure
-h(1) = semilogy(spec_y_MMP_QF_FIR.f,spec_y_MMP_QF_FIR.amp);
-hold on
-h(2) = semilogy(spec_y_MMP_QF_IIR.f,spec_y_MMP_QF_IIR.amp);
-title('MMP Output')
-for i = 1:2
-    % h(i).Color = color_all{i+2};
-    h(i).LineStyle = line_style{i+2};
-end
-set(h,'linewidth',1);
-ax = gca;
-ax.FontSize= font_size;
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-legend('W:FIR','W:IIR','location','southeast')
-xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
-ylabel('Magnitude')
-xlabel('Hz')
+    h(1) = semilogy(spec_y_MMP_QF_FIR.f,spec_y_MMP_QF_FIR.amp);
+    hold on
+    h(2) = semilogy(spec_y_MMP_QF_IIR.f,spec_y_MMP_QF_IIR.amp);
+    title('MMP Output')
+    for i = 1:2
+        % h(i).Color = color_all{i+2};
+        h(i).LineStyle = line_style{i+2};
+    end
+    set(h,'linewidth',1);
+    ax = gca;
+    ax.FontSize= font_size;
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    legend('W:FIR','W:IIR','location','southeast')
+    xlim([spec_QIIR_FIR.f(1) spec_QIIR_FIR.f(end)])
+    ylabel('Magnitude')
+    xlabel('Hz')
 
 % robust stability analysis, T and inv(T)
 % states that |T(z) w| < 1 for all z=e^j\omega to be stable with
@@ -855,123 +857,124 @@ T_all(10) = minreal(T_1 + T_2*Qcvx(3)); % Q:IIR
 % bode of inv(T)
 Tinv = tf();
 for i = 1:10
-Tinv(i) = inv(T_all(i));
+    Tinv(i) = inv(T_all(i));
 end
 [mag, phi, ~] = bode(Tinv,w_in_rad);
 mag = 20*log10(squeeze(mag));
 phi = wrapTo180(squeeze(phi));
-figure
-hold on
-for i = 1:4
-    h(i) = semilogx(w_in_Hz,mag(i,:));
-    h(i).Color = color_cvx{i};
-    h(i).LineStyle = line_style{i};
-    h(i).LineWidth = 1.5;
-end
-ax = gca;
-ax.FontSize= font_size;
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-hold off
-xlim([1 w_in_Hz(end)])
-xlabel('Hz')
-ylabel('Magnitude (dB)')
-legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
-title('W(1), inv(T)')
 
 figure
-hold on
-for i = 1:4
-    h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
-    h(i+4).Color = color_cvx{i};
-    h(i+4).LineStyle = line_style{i};
-    h(i+4).LineWidth = 1.5;
-end
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-hold off
-ax = gca;
-ax.FontSize= font_size;
-xlim([1 w_in_Hz(end)])
-xlabel('Hz')
-ylabel('Magnitude (dB)')
-legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
-title('W(2), inv(T)')
+    hold on
+    for i = 1:4
+        h(i) = semilogx(w_in_Hz,mag(i,:));
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+        h(i).LineWidth = 1.5;
+    end
+    ax = gca;
+    ax.FontSize= font_size;
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    hold off
+    xlim([1 w_in_Hz(end)])
+    xlabel('Hz')
+    ylabel('Magnitude (dB)')
+    legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
+    title('W(1), inv(T)')
 
 figure
-hold on
-for i = 1:2
-h(i+8) = semilogx(w_in_Hz,mag(i+4,:));
-h(i+8).LineStyle = line_style{i};
-h(i+8).LineWidth = 1.5;
-end
-x_line = xline(Nyq_Hz);
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1.5;
-x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-for i = 1:m_d
-x_line = xline(f_hz(i));
-x_line.Color = [0 0 0];
-x_line.LineWidth = 1;
-x_line.Label = sprintf('%.f Hz',f_hz(i));
-x_line.LabelOrientation = 'aligned';
-x_line.LabelVerticalAlignment = 'bottom';
-x_line.LabelHorizontalAlignment = 'center';
-x_line.FontSize = 10;
-x_line.FontWeight = 'bold';
-x_line.LineStyle = '--';
-end
-hold off
-ax = gca;
-ax.FontSize= font_size;
-xlim([1 w_in_Hz(end)])
-xlabel('Hz')
-ylabel('Magnitude (dB)')
-legend('SDP:FIR','SDP:IIR','location','southeast')
-title('1/|T(z)|')
+    hold on
+    for i = 1:4
+        h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
+        h(i+4).Color = color_cvx{i};
+        h(i+4).LineStyle = line_style{i};
+        h(i+4).LineWidth = 1.5;
+    end
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    hold off
+    ax = gca;
+    ax.FontSize= font_size;
+    xlim([1 w_in_Hz(end)])
+    xlabel('Hz')
+    ylabel('Magnitude (dB)')
+    legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
+    title('W(2), inv(T)')
+
+figure
+    hold on
+    for i = 1:2
+        h(i+8) = semilogx(w_in_Hz,mag(i+4,:));
+        h(i+8).LineStyle = line_style{i};
+        h(i+8).LineWidth = 1.5;
+    end
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.LabelOrientation = 'aligned';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'center';
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 10;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
+    hold off
+    ax = gca;
+    ax.FontSize= font_size;
+    xlim([1 w_in_Hz(end)])
+    xlabel('Hz')
+    ylabel('Magnitude (dB)')
+    legend('SDP:FIR','SDP:IIR','location','southeast')
+    title('1/|T(z)|')
 % % bode of T
 % [mag, phi, ~] = bode(T_all,w_in_rad);
 % mag = 20*log10(squeeze(mag));
@@ -996,25 +999,27 @@ title('1/|T(z)|')
 opts = bodeoptions;
 opts.FreqUnits = 'Hz';
 opts.PhaseWrapping = 'on';
-figure
-bodeplot(Qcvx(2),Qcvx(3),opts)
-legend('Q:FIR','Q:IIR','location','southeast')
-figure
-bodeplot(w_k_iir(1),w_k_iir(2),opts)
-legend('W_1','W_2','location','southeast')
 
 figure
-bodeplot(PQcvx_FIR,PQcvx_IIR,opts)
-legend('PQ_FIR','PQ_IIR','location','southeast')
+    bodeplot(Qcvx(2),Qcvx(3),opts)
+    legend('Q:FIR','Q:IIR','location','southeast')
 
 figure
-bodeplot(PQcvx_FIR*w_k_fir(1),PQcvx_IIR*w_k_iir(1),opts)
-legend('PWQ_FIR','PWQ_IIR','location','southeast')
+    bodeplot(w_k_iir(1),w_k_iir(2),opts)
+    legend('W_1','W_2','location','southeast')
+
+figure
+    bodeplot(PQcvx_FIR,PQcvx_IIR,opts)
+    legend('PQ_FIR','PQ_IIR','location','southeast')
+
+figure
+    bodeplot(PQcvx_FIR*w_k_fir(1),PQcvx_IIR*w_k_iir(1),opts)
+    legend('PWQ_FIR','PWQ_IIR','location','southeast')
 
 S1 = feedback(Pz*Cz,1);
 figure
-bodeplot(S1,opts);
-title('PC/(1+PC)')
+    bodeplot(S1,opts);
+    title('PC/(1+PC)')
 
 %% calculating max uncertainty allowed
 T_all(1) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(1)); % Q:FIR, W:FIR
@@ -1034,7 +1039,7 @@ h_inf_db = 20*log10(h_inf);
 
 %% pole-zero map of T(z)
 figure
-bode(Ps)
+    bode(Ps)
 % for i_it = 1:8
 %     figure
 %     pzmap(T_all(i_it))
