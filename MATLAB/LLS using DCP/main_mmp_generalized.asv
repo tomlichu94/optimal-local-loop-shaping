@@ -30,7 +30,7 @@ L_t = 5/2; % sampling rate multilpier
 k_t = N_L - 1;
 T_ss = T_fs*L_t; % slow sampling time
 T_cs = T_fs/D_L;
-batches = 1000*4; % the number of cycles 
+batches = 1000*8; % the number of cycles 
 max_order = 30; % max filter order
 max_amp = 1; % max disturb amplitude
 
@@ -38,7 +38,7 @@ PQ_max = 8; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
 f_stop = 200; % SOCP stop constraint past this frequency
 a_mmp = 0.90; % MMP alpha
-a_Q = 0.90; % QIIR alpha
+a_Q = 0.95; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Tsim = batches*T_ss; %   simulation time
@@ -52,24 +52,23 @@ Ts_CT_approx = T_cs/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 3;
-tempW = zeros(1,m_d);
-for i = 1:(m_d) 
-    tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
-end
+% m_d = 3;
+% tempW = zeros(1,m_d);
+% for i = 1:(m_d) 
+%     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
+% end
 
-% standardized test run
-% tempW = [1.32 1.67 1.93 2.18];
+tempW = [1.32 1.67 1.93 2.18]; % good run
 
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
-f_hz = w_d/(2*pi*T_fs); % disturbance in Hz
+f_d = w_d/(2*pi*T_fs); % disturbance in Hz
 p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
 A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
 %% ============== Predictor Coefficients and TF, W_k ======================
-[mmp_fir_coeff] = w_coeff_fir(f_hz, T_fs, L_t); % predictor coefficients
-[mmp_iir_coeff, B_para] = w_coeff_iir(f_hz, T_fs, a_mmp, L_t);
+[mmp_fir_coeff] = w_coeff_fir(f_d, T_fs, L_t); % predictor coefficients
+[mmp_iir_coeff, B_para] = w_coeff_iir(f_d, T_fs, a_mmp, L_t);
 [w_fir_num, w_fir_den] = w_tf_fir(mmp_fir_coeff);
 [w_iir_num, w_iir_den] = w_tf_iir(mmp_iir_coeff,B_para);
 for k = 1:k_t
@@ -78,7 +77,7 @@ for k = 1:k_t
 end
 
 %% ============== discrete set of frequencies ==========================
-range_mult = 40;
+range_mult = 30;
 w_lin = w_lin_spacing(max_order,range_mult,tempW,L_t);
 w_lin_Hz = w_lin/(2*pi*T_fs);
 stop_indx = find(w_lin_Hz>f_stop);
@@ -173,9 +172,9 @@ fprintf('SOCP: %s\n',cvx_status)
 Qcvx_num = conv(Q0_num,q_vec');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
 Qcvx_socp = tf(Qcvx_num,Qcvx_den,T_fs);
-Qcvx(1) = minreal(Qcvx_socp);
-PQ_socp = minreal(Pz*Qcvx(1));
-T_socp = minreal(1-PQ_socp);
+Qcvx_socp = minreal(Qcvx_socp);
+PQ_cvx_quad = minreal(Pz*Qcvx_socp);
+T_cvx_quad = minreal(1-PQ_cvx_quad);
 
 %% QFIR SDP implementation
 %%%%%%%%%%%%%%%%%%%%%%%%% FIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -231,7 +230,6 @@ fprintf('SDP-FIR: %s\n',cvx_status)
 Qcvx_num = conv(Q0_num,q');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
 Qcvx_FIR = tf(Qcvx_num,Qcvx_den,T_fs);
-Qcvx(2) = minreal(Qcvx_FIR);
 PQcvx_FIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_FIR_den = conv(Pz_den,Qcvx_den);
 PQcvx_FIR = tf(PQcvx_FIR_num,PQcvx_FIR_den,T_fs);
@@ -315,12 +313,16 @@ Q0Fz1_num = conv(Q0_num,Fz1_num); % conv(Q0,1-Fz)
 Q0Fz1_den = conv(Q0_den,Fz1_den);
 Qcvx_num = conv(Q0Fz1_num,k'); % conv(Q0(1-Fz),K)
 Qcvx_den = conv(Q0Fz1_den,[1 zeros(1,max_order)]);
-Qcvx_IIR = tf(Qcvx_num,Qcvx_den,T_fs);
-Qcvx(3) = minreal(Qcvx_IIR);
+Qcvx_IIR = tf(Qcvx_num,Qcvx_den,T_fs); % for Simulink
 PQcvx_IIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_IIR_den = conv(Pz_den,Qcvx_den);
 PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,T_fs);
 T_cvx_IIR = 1 - PQcvx_IIR;
+
+%% Storing Qcvx terms
+Qcvx(1) = Qcvx_socp;
+Qcvx(2) = Qcvx_FIR;
+Qcvx(3) = Qcvx_IIR;
 
 %% bandpass baseline
 w_hz_d = w_d/(2*pi*T_fs);
@@ -372,9 +374,9 @@ end
 d_out = d_sim_fs';
 
 % if baseline fails due to stability
-y0_fs = zeros(2,Tsim/T_fs+1);
-y0_ss = zeros(2,Tsim/T_ss+1);
-mmp0 = zeros(2,Tsim/T_fs+1);
+y0_fs = zeros(Tsim/T_fs+1,2,3);
+y0_ss = zeros(Tsim/T_ss+1,2,3);
+mmp0 = zeros(Tsim/T_fs+1,2,3);
 % y0_fs = y_base_fs(:,2:3)'; % fast output for q_bp using w_fir and w_iir
 % y0_ss = y_base_ss(:,2:3)'; % slow output for q_bp
 % mmp0 = y_base_mmp(:,1)'; % output of mmp for Q_bp using w_iir
@@ -413,28 +415,27 @@ line_style = {'-','--','--',':'};
 n_all = 4;
 
 % =================== W Predictor Bode =================================
-mag_w_iir = zeros(2, length(w_in_rad));
-phi_w_iir = zeros(2, length(w_in_rad));
-for i = 1:2
-    [mag_w_iir, phi_w_iir, ~] = bode(w_k_iir(i),w_in_rad);
-    mag_w_iir(i,:) = 20*log10(mag_w_iir(:));
-    phi_w_iir(i,:) = wrapTo180(phi_w_iir(:));
-end
+[mag_w_iir1, phi_w_iir1, ~] = bode(w_k_iir(1),w_in_rad);
+[mag_w_iir2, phi_w_iir2, ~] = bode(w_k_iir(2),w_in_rad);
+mag_w_iir1 = 20*log10(mag_w_iir1(:));
+phi_w_iir1 = wrapTo180(phi_w_iir1(:));
+mag_w_iir2 = 20*log10(mag_w_iir2(:));
+phi_w_iir2 = wrapTo180(phi_w_iir2(:));
 
 figure()
 subplot(2,1,1)
-    semilogx(w_in_Hz, mag_w_iir(1,:), w_in_Hz, mag_w_iir(2,:));
-    xlabel('Hz')
-    ylabel('Magnitude (dB)')
-    xlim([1 x_lim_loop(end)])
-    title('MMP Bode Plots')
+semilogx(w_in_Hz,mag_w_iir1,w_in_Hz,mag_w_iir2);
+xlabel('Hz')
+ylabel('Magnitude (dB)')
+xlim([1 x_lim_loop(end)])
+title('W Predictor Bode')
 subplot(2,1,2)
-    semilogx(w_in_Hz, phi_w_iir(1,:), w_in_Hz, phi_w_iir(2,:));
-    hold off
-    xlabel('Hz')
-    ylabel('Phase (deg.)')
-    xlim([1 x_lim_loop(end)])
-    legend('IIR 1','IIR 2')
+semilogx(w_in_Hz,phi_w_iir1,w_in_Hz,phi_w_iir2);
+hold off
+xlabel('Hz')
+ylabel('Phase (deg.)')
+xlim([1 x_lim_loop(end)])
+legend('IIR 1','IIR 2')
 
 % =================== Q-filter Bode ====================================
 [mag_T_FIR, phi_T_FIR, ~] = bode(T_cvx_FIR,w_in_rad);
@@ -840,18 +841,19 @@ Pz_nd = tf(Pz_num,Pz_den,T_fs);
 T_1 = feedback(Pz*Cz,1);
 T_2 = feedback(Pz,Cz,-1);
 
-T_all(1) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(1)); % Q:FIR, W:FIR
-T_all(2) = minreal(T_1 + T_2*Qcvx(2)*w_k_iir(1)); % Q:FIR, W:IIR
-T_all(3) = minreal(T_1 + T_2*Qcvx(3)*w_k_fir(1)); % Q:IIR, W:FIR
-T_all(4) = minreal(T_1 + T_2*Qcvx(3)*w_k_iir(1)); % Q:IIR, W:IIR
-T_all(5) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(2)); % Q:FIR, W:FIR
-T_all(6) = minreal(T_1 + T_2*Qcvx(2)*w_k_iir(2)); % Q:FIR, W:IIR
-T_all(7) = minreal(T_1 + T_2*Qcvx(3)*w_k_fir(2)); % Q:IIR, W:FIR
-T_all(8) = minreal(T_1 + T_2*Qcvx(3)*w_k_iir(2)); % Q:IIR, W:IIR
-T_all(9) = minreal(T_1 + T_2*Qcvx(2)); % Q:FIR
-T_all(10) = minreal(T_1 + T_2*Qcvx(3)); % Q:IIR
+T_all(1) = minreal(T_1 + T_2*Qcvx_FIR*W_k_fir(1)); % Q:FIR, W:FIR
+T_all(2) = minreal(T_1 + T_2*Qcvx_FIR*W_k_iir(1)); % Q:FIR, W:IIR
+T_all(3) = minreal(T_1 + T_2*Qcvx_IIR*W_k_fir(1)); % Q:IIR, W:FIR
+T_all(4) = minreal(T_1 + T_2*Qcvx_IIR*W_k_iir(1)); % Q:IIR, W:IIR
+T_all(5) = minreal(T_1 + T_2*Qcvx_FIR*W_k_fir(2)); % Q:FIR, W:FIR
+T_all(6) = minreal(T_1 + T_2*Qcvx_FIR*W_k_iir(2)); % Q:FIR, W:IIR
+T_all(7) = minreal(T_1 + T_2*Qcvx_IIR*W_k_fir(2)); % Q:IIR, W:FIR
+T_all(8) = minreal(T_1 + T_2*Qcvx_IIR*W_k_iir(2)); % Q:IIR, W:IIR
+T_all(9) = minreal(T_1 + T_2*Qcvx_FIR); % Q:FIR
+T_all(10) = minreal(T_1 + T_2*Qcvx_IIR); % Q:IIR
 
 
+% close all
 % bode of inv(T)
 Tinv = tf();
 for i = 1:10
@@ -997,10 +999,10 @@ opts = bodeoptions;
 opts.FreqUnits = 'Hz';
 opts.PhaseWrapping = 'on';
 figure
-bodeplot(Qcvx(2),Qcvx(3),opts)
+bodeplot(Qcvx_FIR,Qcvx_IIR,opts)
 legend('Q:FIR','Q:IIR','location','southeast')
 figure
-bodeplot(w_k_iir(1),w_k_iir(2),opts)
+bodeplot(W_k_iir(1),W_k_iir(2),opts)
 legend('W_1','W_2','location','southeast')
 
 figure
@@ -1008,7 +1010,7 @@ bodeplot(PQcvx_FIR,PQcvx_IIR,opts)
 legend('PQ_FIR','PQ_IIR','location','southeast')
 
 figure
-bodeplot(PQcvx_FIR*w_k_fir(1),PQcvx_IIR*w_k_iir(1),opts)
+bodeplot(PQcvx_FIR*W_k_fir(1),PQcvx_IIR*W_k_iir(1),opts)
 legend('PWQ_FIR','PWQ_IIR','location','southeast')
 
 S1 = feedback(Pz*Cz,1);
@@ -1017,14 +1019,14 @@ bodeplot(S1,opts);
 title('PC/(1+PC)')
 
 %% calculating max uncertainty allowed
-T_all(1) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(1)); % Q:FIR, W:FIR
-T_all(2) = minreal(T_1 + T_2*Qcvx(2)*w_k_iir(1)); % Q:FIR, W:IIR
-T_all(3) = minreal(T_1 + T_2*Qcvx(3)*w_k_fir(1)); % Q:IIR, W:FIR
-T_all(4) = minreal(T_1 + T_2*Qcvx(3)*w_k_iir(1)); % Q:IIR, W:IIR
-T_all(5) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(2)); % Q:FIR, W:FIR
-T_all(6) = minreal(T_1 + T_2*Qcvx(2)*w_k_iir(2)); % Q:FIR, W:IIR
-T_all(7) = minreal(T_1 + T_2*Qcvx(3)*w_k_fir(2)); % Q:IIR, W:FIR
-T_all(8) = minreal(T_1 + T_2*Qcvx(3)*w_k_iir(2)); % Q:IIR, W:IIR
+T_all(1) = minreal(T_1 + T_2*Qcvx_FIR*W_k_fir(1)); % Q:FIR, W:FIR
+T_all(2) = minreal(T_1 + T_2*Qcvx_FIR*W_k_iir(1)); % Q:FIR, W:IIR
+T_all(3) = minreal(T_1 + T_2*Qcvx_IIR*W_k_fir(1)); % Q:IIR, W:FIR
+T_all(4) = minreal(T_1 + T_2*Qcvx_IIR*W_k_iir(1)); % Q:IIR, W:IIR
+T_all(5) = minreal(T_1 + T_2*Qcvx_FIR*W_k_fir(2)); % Q:FIR, W:FIR
+T_all(6) = minreal(T_1 + T_2*Qcvx_FIR*W_k_iir(2)); % Q:FIR, W:IIR
+T_all(7) = minreal(T_1 + T_2*Qcvx_IIR*W_k_fir(2)); % Q:IIR, W:FIR
+T_all(8) = minreal(T_1 + T_2*Qcvx_IIR*W_k_iir(2)); % Q:IIR, W:IIR
 h_inf = [];
 for i_it = 1:8
     h_inf(i_it) = hinfnorm(T_all(i_it));
