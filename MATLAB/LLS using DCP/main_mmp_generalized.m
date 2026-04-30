@@ -17,19 +17,19 @@ load mainPlantData;
 Nx = 10; % multiplier to increase sampling time
 PlantData.Ts = PlantData.Ts*Nx;
 PlantData.Tu = PlantData.Tu*Nx;
-Tu = PlantData.Tu; % baseline plant sampling time
+T_fs = PlantData.Tu; % baseline plant sampling time
 Ps = PlantData.Pn; % continuous-time plant
 Ps = tf(Ps); % define CT plnat as a transfer function
-Pz_delay = c2d(Ps,Tu,'zoh'); % discretize the plant
-z = tf('z',Tu); % discrete time based on fast sampling
+Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
+z = tf('z',T_fs); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 L_t = 5/2; % sampling rate multilpier
 [N_L, D_L] = rat(L_t);
 k_t = N_L - 1;
-Ts = Tu*L_t; % slow sampling time
-T_cs = Tu/D_L;
+T_ss = T_fs*L_t; % slow sampling time
+T_cs = T_fs/D_L;
 batches = 1000*8; % the number of cycles 
 max_order = 30; % max filter order
 max_amp = 1; % max disturb amplitude
@@ -41,10 +41,10 @@ a_g_IIR = 0.90; % predictor alpha
 alpha = 0.95; % QIIR alpha
 
 %%%%%%%%%%%%%%%%%%%%% simulation run time %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Tsim = batches*Ts; %   simulation time
+Tsim = batches*T_ss; %   simulation time
 simStepSize = T_cs/20; % simulation step size
 Ts_CT_approx = T_cs/20; % approximating continuous time sys
-[SensorNoise, ForceDist] = SetDisturbance(Tsim,Ts,Tu); % generate noise
+[SensorNoise, ForceDist] = SetDisturbance(Tsim,T_ss,T_fs); % generate noise
 
 %%%%%%%%%%%%%%%%%%%% narrow-band disturbance frequency %%%%%%%%%%%%%%%%%%%%
 % generates random multiplier for beyond Nyq freq of slow samlper
@@ -62,24 +62,24 @@ tempW = [1.32 1.67 1.93 2.18]; % good run
 
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
-f_d = w_d/(2*pi*Tu); % disturbance in Hz
+f_d = w_d/(2*pi*T_fs); % disturbance in Hz
 p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
 A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
 %% ============== Predictor Coefficients and TF, W_k ======================
-[w_k] = w_coeff_fir(f_d, Tu, L_t); % predictor coefficients
-[w_k_IIR, B_para] = w_coeff_iir(f_d, Tu, a_g_IIR, L_t);
+[w_k] = w_coeff_fir(f_d, T_fs, L_t); % predictor coefficients
+[w_k_IIR, B_para] = w_coeff_iir(f_d, T_fs, a_g_IIR, L_t);
 [W_FIR_num, W_FIR_den] = w_tf_fir(w_k);
 [W_IIR_num, W_IIR_den] = w_tf_iir(w_k_IIR,B_para);
 for k = 1:k_t
-W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
-W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
+W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),T_fs);
+W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),T_fs);
 end
 
 %% ============== discrete set of frequencies ==========================
 range_mult = 30;
 w_lin = w_lin_spacing(max_order,range_mult,tempW,L_t);
-w_lin_Hz = w_lin/(2*pi*Tu);
+w_lin_Hz = w_lin/(2*pi*T_fs);
 stop_indx = find(w_lin_Hz>f_stop);
 stop_indx = stop_indx(1);
 fprintf('Stop Constraint %u Hz \n',w_lin_Hz(stop_indx))
@@ -96,7 +96,7 @@ Pz_sys = ss(Pz); % used in Simulink
 %%%%% using Q0 = 1-z^-1
 Q0_num = [1 -1];
 Q0_den = [1 0]; 
-Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
+Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
 %%%%% using Q0 = 1+z^-1
 % Q0_num = [1 -1];
 % Q1_num = [1 1];
@@ -119,7 +119,7 @@ phi(i+1) = z^(-i);
 end
 PQ0_num = conv(Pz_num,Q0_num);
 PQ0_den = conv(Pz_den,Q0_den);
-PQ0 = tf(PQ0_num,PQ0_den,Tu); % transfer function of Pz*Q0
+PQ0 = tf(PQ0_num,PQ0_den,T_fs); % transfer function of Pz*Q0
 P_phi = PQ0*phi;
 PQ_d = freqresp(P_phi,exp(1j*w_d)); % sub in disturbance vals into P_phi
 %%%%%%%%%%%%%%%%%%%%% Stabilizing controller %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -171,7 +171,7 @@ fprintf('SOCP: %s\n',cvx_status)
 
 Qcvx_num = conv(Q0_num,q_vec');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
-Qcvx_socp = tf(Qcvx_num,Qcvx_den,Tu);
+Qcvx_socp = tf(Qcvx_num,Qcvx_den,T_fs);
 Qcvx_socp = minreal(Qcvx_socp);
 PQ_cvx_quad = minreal(Pz*Qcvx_socp);
 T_cvx_quad = minreal(1-PQ_cvx_quad);
@@ -229,21 +229,21 @@ fprintf('SDP-FIR: %s\n',cvx_status)
 % Q filter construction
 Qcvx_num = conv(Q0_num,q');
 Qcvx_den = conv(Q0_den,[1 zeros(1,max_order)]);
-Qcvx_FIR = tf(Qcvx_num,Qcvx_den,Tu);
+Qcvx_FIR = tf(Qcvx_num,Qcvx_den,T_fs);
 PQcvx_FIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_FIR_den = conv(Pz_den,Qcvx_den);
-PQcvx_FIR = tf(PQcvx_FIR_num,PQcvx_FIR_den,Tu);
+PQcvx_FIR = tf(PQcvx_FIR_num,PQcvx_FIR_den,T_fs);
 T_cvx_FIR = 1 - PQcvx_FIR;
 
 %% QIIR SDP implementation
 %%%%%%%%%%%%%%%%%%%%%%%%%% IIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%
 [Fz_num, Fz_den] = F_notch(w_d,alpha);
-Fz = tf(Fz_num,Fz_den,Tu);
+Fz = tf(Fz_num,Fz_den,T_fs);
 
 %%%%%%%%%%%%%%%%%%%%%% Notes on H(z) formulation %%%%%%%%%%%%%%%%%%%%%%%%%%
 H_num = conv(PQ0_num,(Fz_num-Fz_den)); % order from z^-6 z^-5 ... z^-1 1
 H_den = conv(PQ0_den,Fz_den); % order from z^6 z^5 ... z^1 1
-Hz = tf(H_num,H_den,Tu);
+Hz = tf(H_num,H_den,T_fs);
 k_iir = size(H_num,2);
 
 % quadratic constraint
@@ -313,10 +313,10 @@ Q0Fz1_num = conv(Q0_num,Fz1_num); % conv(Q0,1-Fz)
 Q0Fz1_den = conv(Q0_den,Fz1_den);
 Qcvx_num = conv(Q0Fz1_num,k'); % conv(Q0(1-Fz),K)
 Qcvx_den = conv(Q0Fz1_den,[1 zeros(1,max_order)]);
-Qcvx_IIR = tf(Qcvx_num,Qcvx_den,Tu); % for Simulink
+Qcvx_IIR = tf(Qcvx_num,Qcvx_den,T_fs); % for Simulink
 PQcvx_IIR_num = conv(Pz_num,Qcvx_num);
 PQcvx_IIR_den = conv(Pz_den,Qcvx_den);
-PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,Tu);
+PQcvx_IIR = tf(PQcvx_IIR_num,PQcvx_IIR_den,T_fs);
 T_cvx_IIR = 1 - PQcvx_IIR;
 
 %% Storing Qcvx terms
@@ -325,38 +325,32 @@ Qcvx(2) = Qcvx_FIR;
 Qcvx(3) = Qcvx_IIR;
 
 %% bandpass baseline
-w_hz_d = w_d/(2*pi*Tu);
+w_hz_d = w_d/(2*pi*T_fs);
 B_bw = w_hz_d*0.2; % bandwidth
-[Q_bp, Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,Tu);
+[Q_bp, Q0_bp] = q_bandpass(Pz,w_hz_d,B_bw,T_fs);
 PQ_bp = minreal(Pz*Q_bp);
 T_bp = 1-PQ_bp;
 
 %% Simulation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% Run Simulink %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % baseline comparison with feedback only and bandpass DOB
-% SimModelBase = 'main_sim_generalized_base';
-% [SimOutBase] = sim(SimModelBase,'StopTime','Tsim','FixedStep','simStepSize');
-% y_base_fs = SimOutBase.y_fs.signals.values;
-% y_base_ss = SimOutBase.y_ss.signals.values;
-% y_base_mmp = SimOutBase.mmp_base.signals.values;
-% t_base_fs = SimOutBase.y_fs.time;
-% t_base_ss = SimOutBase.y_ss.time;
-% y0_fs = zeros(2,Tsim/T_fs+1);
-% y0_ss = zeros(2,Tsim/T_ss+1);
-% mmp0 = zeros(2,Tsim/T_fs+1);
+SimModelBase = 'main_sim_generalized_base';
+[SimOutBase] = sim(SimModelBase,'StopTime','Tsim','FixedStep','simStepSize');
+y_base_fs = SimOutBase.y_fs.signals.values;
+y_base_ss = SimOutBase.y_ss.signals.values;
+y_base_mmp = SimOutBase.mmp_base.signals.values;
+t_base_fs = SimOutBase.y_fs.time;
+t_base_ss = SimOutBase.y_ss.time;
+y0_fs = zeros(2,Tsim/T_fs+1);
+y0_ss = zeros(2,Tsim/T_ss+1);
+mmp0 = zeros(2,Tsim/T_fs+1);
 
-% simulation using optimization
-% preallocate output sizes
-% d_sim_fs = zeros(Tsim/T_fs+1,3);
-% y_sim_fs = zeros(Tsim/T_fs+1,2,3);
-% y_sim_ss = zeros(Tsim/T_ss+1,2,3);
-% y_sim_mmp = zeros(Tsim/T_fs+1,2,3);
-
-Qcvx_sim = Qcvx(3);
-
-SimModel = 'main_sim_generalized';
-[SimOut] = sim(SimModel,'StopTime','Tsim','FixedStep','simStepSize');
-return
+simulation using optimization
+preallocate output sizes
+d_sim_fs = zeros(Tsim/T_fs+1,3);
+y_sim_fs = zeros(Tsim/T_fs+1,2,3);
+y_sim_ss = zeros(Tsim/T_ss+1,2,3);
+y_sim_mmp = zeros(Tsim/T_fs+1,2,3);
 
 for i = 1:3
     Qcvx_sim = Qcvx(i);
@@ -426,10 +420,10 @@ d_out = SimOut.y_dist_Tu.signals.values;
 
 %% =============== Plotting bode plots ==================================
 % defining the frequency range to be plotted and axes limits
-w_in_Hz_end = 1/(2*Tu); % end of plotting for Nyq freq of the fast
+w_in_Hz_end = 1/(2*T_fs); % end of plotting for Nyq freq of the fast
 w_in_Hz = 1:1:w_in_Hz_end;
 w_in_rad = w_in_Hz*2*pi;
-Nyq_Hz = 1/(2*Ts);
+Nyq_Hz = 1/(2*T_ss);
 w_start = 1; % starting frequency for x_lim
 l_width = 1.2; % linewidth
 font_size = 11; % font size
@@ -642,10 +636,10 @@ for i = 1:n_all
     h(i).LineWidth = l_width2;
 end
 
-spec_QFIR_FIR = specCal(y1a,1/Tu);
-spec_QFIR_IIR = specCal(y2a,1/Tu);
-spec_QIIR_FIR = specCal(y3a,1/Tu);
-spec_QIIR_IIR = specCal(y4a,1/Tu);
+spec_QFIR_FIR = specCal(y1a,1/T_fs);
+spec_QFIR_IIR = specCal(y2a,1/T_fs);
+spec_QIIR_FIR = specCal(y3a,1/T_fs);
+spec_QIIR_IIR = specCal(y4a,1/T_fs);
 
 figure()
 h(1) = semilogy(spec_QFIR_FIR.f,spec_QFIR_FIR.amp);
@@ -726,10 +720,10 @@ set(h,'linewidth',1);
 hold off
 
 % MMP output
-spec_y_MMP_QF_FIR = specCal(y1c,1/Tu);
-spec_y_MMP_QF_IIR = specCal(y2c,1/Tu);
-spec_y_MMP_QI_FIR = specCal(y3c,1/Tu);
-spec_y_MMP_QI_IIR = specCal(y4c,1/Tu);
+spec_y_MMP_QF_FIR = specCal(y1c,1/T_fs);
+spec_y_MMP_QF_IIR = specCal(y2c,1/T_fs);
+spec_y_MMP_QI_FIR = specCal(y3c,1/T_fs);
+spec_y_MMP_QI_IIR = specCal(y4c,1/T_fs);
 
 figure
 h(1) = semilogy(spec_y_MMP_QF_FIR.f,spec_y_MMP_QF_FIR.amp);
@@ -773,10 +767,10 @@ xlabel('Hz')
 % states that |T(z) w| < 1 for all z=e^j\omega to be stable with
 % uncertainty. w is characterized as the magnitude of the uncertainty
 Ps = tf(Ps); % define CT plnat as a transfer function
-Pz_delay = c2d(Ps,Tu,'zoh'); % discretize the plant
+Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
 Pz_num = cell2mat(Pz_delay.num);
 Pz_den = cell2mat(Pz_delay.den);
-Pz_nd = tf(Pz_num,Pz_den,Tu);
+Pz_nd = tf(Pz_num,Pz_den,T_fs);
 T_1 = feedback(Pz*Cz,1);
 T_2 = feedback(Pz,Cz,-1);
 
