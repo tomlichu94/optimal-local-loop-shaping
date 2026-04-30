@@ -66,10 +66,10 @@ p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
 A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
 % ============== Predictor Coefficients and TF, W_k ======================
-[w_k_fir] = w_kfir_frac(f_d, Tu, 1, L_t); % predictor coefficients
-[w_k_iir, B_para] = w_kiir_frac(f_d, Tu, a_g_IIR, 1, L_t);
-[W_FIR_num, W_FIR_den] = W_TF_FIR(w_k_fir);
-[W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_iir,B_para);
+[w_k_fir] = w_coeff_fir(f_d, Tu, L_t); % predictor coefficients
+[w_k_iir, B_para] = w_coeff_iir(f_d, Tu, a_g_IIR, L_t);
+[W_FIR_num, W_FIR_den] = w_tf_fir(w_k_fir);
+[W_IIR_num, W_IIR_den] = w_tf_iir(w_k_iir,B_para);
 W_k_FIR(1,k_t) = tf(0);
 W_k_iir(1,k_t) = tf(0);
 

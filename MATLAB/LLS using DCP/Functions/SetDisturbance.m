@@ -140,9 +140,9 @@ SensorNoise = SetSensorNoise(DistParam);
         NUM  = DistParam.Nums;
 
         % Force dist. in time domain
-        if fix(Ts/Tu) ~= (Ts/Tu)
-            error('Ts/Tu must be integer');
-        end
+        % if fix(Ts/Tu) ~= (Ts/Tu)
+        %     error('Ts/Tu must be integer');
+        % end
         NUM_ForceDist = DistParam.t_simu/Tu+1;
         randn('state',Seed_ForceDist);
         Data       = whitenoise(NUM_ForceDist,Tu)*DistParam.AmpForceDist;
