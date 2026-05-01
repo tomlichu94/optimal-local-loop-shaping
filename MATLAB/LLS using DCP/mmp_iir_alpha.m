@@ -308,10 +308,12 @@ subplot(2,1,2)
         hold on
     end
     x_line = xline(Nyq_Hz);
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
     x_line.Color = [0 0 0];
     x_line.LineWidth = 1.5;
-    x_line.FontSize = 11;
     x_line.FontWeight = 'bold';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'left';
     for i = 1:size(w_d,2)
         x_line = xline(f_hz(i));
         x_line.Color = [0 0 0];

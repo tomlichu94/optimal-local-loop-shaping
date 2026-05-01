@@ -586,8 +586,8 @@ fprintf('RMS of Q-IIR, W-IIR: %d\n',rms(y3_fs(2,:)));
 % y2: Q_fir
 % y3: Q_iir
 % y#(1,:):w_fir, y#(2,:):w_iir
-y_out_lim = [-8 8];
-x_lim = [0.18 0.2];
+y_out_lim = [-10 10];
+x_lim = [0.18 0.188];
 size_mark = 6;
 l_width2 = 1;
 
@@ -610,6 +610,8 @@ figure()
         h(i).Color = color_base{i};
         h(i).MarkerSize = size_mark;
         h(i).LineWidth = l_width2;
+        h(i).Marker = marker_style{i};
+        h(i).MarkerSize = size_mark;
     end
 
 figure()
@@ -903,6 +905,7 @@ figure
     ylabel('Magnitude (dB)')
     legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
     title('W(1), inv(T)')
+    ylim([-40, 60])
 
 figure
     hold on
@@ -937,6 +940,7 @@ figure
     ax = gca;
     ax.FontSize= font_size;
     xlim([1 w_in_Hz(end)])
+    ylim([-40, 60])
     xlabel('Hz')
     ylabel('Magnitude (dB)')
     legend('SDP:FIR - W:FIR','SDP:FIR - W:IIR','SDP:IIR - W:FIR','SDP:IIR - W:IIR','location','southeast')
