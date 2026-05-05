@@ -1046,13 +1046,12 @@ end
 % area
 clc
 close all
-n_it = 9;
-[mag, phi, ~] = bode(T_all(n_it),2 * w_in_rad);
-w_rad = 2 * w_in_rad * T_fs;
+[mag, phi, ~] = bode(T_all(9),w_in_rad);
+w_rad = w_in_rad * T_fs;
 mag = abs(log(squeeze(mag)));
-bode(T_all(n_it))
+bode(T_all(9))
 calc_area = trapz(w_rad,mag)
-zeros_T = zero(T_all(n_it));
-zeros_T = abs(zeros_T(abs(zero(T_all(n_it)))>1));
-calc_zeros = 2*pi*sum(log(zeros_T))
+zeros_T = zero(T_all(9));
+zeros_T = zeros_T(abs(zero(T_all(9)))>1);
+calc_zeros = 2*pi*sum(ln(zeros_T)
 
