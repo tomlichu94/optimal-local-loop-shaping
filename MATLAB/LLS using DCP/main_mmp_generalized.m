@@ -984,25 +984,25 @@ figure
     ylabel('Magnitude (dB)')
     legend('SDP:FIR','SDP:IIR','location','southeast')
     title('1/|T(z)|')
-% % bode of T
-% [mag, phi, ~] = bode(T_all,w_in_rad);
-% mag = 20*log10(squeeze(mag));
-% phi = wrapTo180(squeeze(phi));
-% figure
-% hold on
-% for i = 1:4
-% h(i) = semilogx(w_in_Hz,mag(i,:));
-% h(i).Color = color_all{i};
-% h(i).LineStyle = line_style{i};
-% h(i).LineWidth = 2.5-0.1*i;
-% end
-% ax = gca;
-% ax.FontSize= font_size;
-% xlim([1 2640])
-% xlabel('Hz')
-% ylabel('Magnitude (dB)')
-% legend('Q:FIR - W:FIR','Q:FIR - W:IIR','Q:IIR - W:FIR','Q:IIR - W:IIR','location','southeast')
-% title('T')
+% bode of T
+[mag, phi, ~] = bode(T_all,w_in_rad);
+mag = 20*log10(squeeze(mag));
+phi = wrapTo180(squeeze(phi));
+figure
+hold on
+for i = 1:4
+    h(i) = semilogx(w_in_Hz,mag(i,:));
+    h(i).Color = color_cvx{i};
+    h(i).LineStyle = line_style{i};
+    h(i).LineWidth = 2.5-0.1*i;
+end
+ax = gca;
+ax.FontSize= font_size;
+xlim([1 2640])
+xlabel('Hz')
+ylabel('Magnitude (dB)')
+legend('Q:FIR - W:FIR','Q:FIR - W:IIR','Q:IIR - W:FIR','Q:IIR - W:IIR','location','southeast')
+title('T(z)')
 
 %% other plots
 opts = bodeoptions;
@@ -1044,8 +1044,6 @@ for i_it = 1:8
 end
 %%
 % area
-% clc
-% close all
 n_it = 9;
 [mag, phi, ~] = bode(T_all(n_it),2 * w_in_rad);
 w_rad = 2 * w_in_rad * T_fs;
