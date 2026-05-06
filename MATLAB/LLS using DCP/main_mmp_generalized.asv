@@ -862,7 +862,8 @@ S_all(7) = minreal(T_3 - T_2*Qcvx(3)*w_k_fir(2)); % Q:IIR, W:FIR
 S_all(8) = minreal(T_3 - T_2*Qcvx(3)*w_k_iir(2)); % Q:IIR, W:IIR
 S_all(9) = minreal(T_3 - T_2*Qcvx(2)); % Q:FIR
 S_all(10) = minreal(T_3 - T_2*Qcvx(3)); % Q:IIR
-S_all(11) = minreal(T_1 + T_2*Qcvx(3)); % Q:SOCP
+S_all(10) = minreal(T_1 + T_2*Qcvx(2)); % Q:FIR
+S_all(11) = minreal(T_1 + T_2*Qcvx(3)); % Q:IIR
 S_all(12) = minreal(T_1 + T_2*Qcvx(1)*w_k_fir(1)); % Q:SOCP, W:FIR
 S_all(13) = minreal(T_1 + T_2*Qcvx(1)*w_k_iir(1)); % Q:SOCP, W:IIR
 
