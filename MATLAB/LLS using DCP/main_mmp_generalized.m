@@ -838,33 +838,41 @@ T_1 = feedback(Pz*Cz,1);
 T_2 = feedback(Pz,Cz);
 T_3 = feedback(1,Pz*Cz);
 
+% W_mmp,1
 T_all(1) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(1)); % Q:FIR, W:FIR
 T_all(2) = minreal(T_1 + T_2*Qcvx(2)*w_k_iir(1)); % Q:FIR, W:IIR
 T_all(3) = minreal(T_1 + T_2*Qcvx(3)*w_k_fir(1)); % Q:IIR, W:FIR
 T_all(4) = minreal(T_1 + T_2*Qcvx(3)*w_k_iir(1)); % Q:IIR, W:IIR
+% W_mmp,2
 T_all(5) = minreal(T_1 + T_2*Qcvx(2)*w_k_fir(2)); % Q:FIR, W:FIR
 T_all(6) = minreal(T_1 + T_2*Qcvx(2)*w_k_iir(2)); % Q:FIR, W:IIR
 T_all(7) = minreal(T_1 + T_2*Qcvx(3)*w_k_fir(2)); % Q:IIR, W:FIR
 T_all(8) = minreal(T_1 + T_2*Qcvx(3)*w_k_iir(2)); % Q:IIR, W:IIR
+% no mmp
 T_all(9) = minreal(T_1 + T_2*Qcvx(1)); % Q:SOCP
 T_all(10) = minreal(T_1 + T_2*Qcvx(2)); % Q:FIR
 T_all(11) = minreal(T_1 + T_2*Qcvx(3)); % Q:IIR
+% socp
 T_all(12) = minreal(T_1 + T_2*Qcvx(1)*w_k_fir(1)); % Q:SOCP, W:FIR
 T_all(13) = minreal(T_1 + T_2*Qcvx(1)*w_k_iir(1)); % Q:SOCP, W:IIR
 
+% W_mmp,1
 S_all(1) = minreal(T_3 - T_2*Qcvx(2)*w_k_fir(1)); % Q:FIR, W:FIR
 S_all(2) = minreal(T_3 - T_2*Qcvx(2)*w_k_iir(1)); % Q:FIR, W:IIR
 S_all(3) = minreal(T_3 - T_2*Qcvx(3)*w_k_fir(1)); % Q:IIR, W:FIR
 S_all(4) = minreal(T_3 - T_2*Qcvx(3)*w_k_iir(1)); % Q:IIR, W:IIR
+% W_mmp,2
 S_all(5) = minreal(T_3 - T_2*Qcvx(2)*w_k_fir(2)); % Q:FIR, W:FIR
 S_all(6) = minreal(T_3 - T_2*Qcvx(2)*w_k_iir(2)); % Q:FIR, W:IIR
 S_all(7) = minreal(T_3 - T_2*Qcvx(3)*w_k_fir(2)); % Q:IIR, W:FIR
 S_all(8) = minreal(T_3 - T_2*Qcvx(3)*w_k_iir(2)); % Q:IIR, W:IIR
+% no mmp
 S_all(9) = minreal(T_3 - T_2*Qcvx(2)); % Q:FIR
 S_all(10) = minreal(T_3 - T_2*Qcvx(3)); % Q:IIR
-S_all(11) = minreal(T_1 + T_2*Qcvx(3)); % Q:SOCP
-S_all(12) = minreal(T_1 + T_2*Qcvx(1)*w_k_fir(1)); % Q:SOCP, W:FIR
-S_all(13) = minreal(T_1 + T_2*Qcvx(1)*w_k_iir(1)); % Q:SOCP, W:IIR
+S_all(11) = minreal(T_3 - T_2*Qcvx(3)); % Q:SOCP
+% socp
+S_all(12) = minreal(T_3 - T_2*Qcvx(1)*w_k_fir(1)); % Q:SOCP, W:FIR
+S_all(13) = minreal(T_3 - T_2*Qcvx(1)*w_k_iir(1)); % Q:SOCP, W:IIR
 
 
 % bode of inv(T)
@@ -879,7 +887,7 @@ phi = wrapTo180(squeeze(phi));
 figure
     hold on
     for i = 1:4
-        h(i) = semilogx(w_in_Hz,mag(i,:));
+        h(i) = plot(w_in_Hz,mag(i,:));
         h(i).Color = color_cvx{i};
         h(i).LineStyle = line_style{i};
         h(i).LineWidth = 1.5;
@@ -918,7 +926,7 @@ figure
 figure
     hold on
     for i = 1:4
-        h(i+4) = semilogx(w_in_Hz,mag(i+4,:));
+        h(i+4) = plot(w_in_Hz,mag(i+4,:));
         h(i+4).Color = color_cvx{i};
         h(i+4).LineStyle = line_style{i};
         h(i+4).LineWidth = 1.5;
@@ -997,7 +1005,7 @@ figure
 figure
     hold on
     for i = 1:3
-        h(i) = semilogx(w_in_Hz,mag(n_iir(i),:));
+        h(i) = plot(w_in_Hz,mag(n_iir(i),:));
         h(i).LineStyle = line_style{i};
         h(i).LineWidth = 1.5;
     end
@@ -1030,6 +1038,7 @@ figure
     ylabel('Magnitude (dB)')
     legend('SOCP','SDP:FIR','SDP:IIR','location','southeast')
     title('1/|T(z)| of W-IIR')
+
 
 % bode of T
 [mag, phi, ~] = bode(T_all,w_in_rad);
@@ -1072,11 +1081,41 @@ figure
     bodeplot(PQcvx_FIR*w_k_fir(1),PQcvx_IIR*w_k_iir(1),opts)
     legend('PWQ_FIR','PWQ_IIR','location','southeast')
 
-S1 = feedback(Pz*Cz,1);
+% T vs S plots
 figure
-    bodeplot(S1,opts);
-    title('PC/(1+PC)')
+    bodeplot(S_all(12),opts);
+    hold on
+    bodeplot(T_all(12),opts);
+    legend('S:FIR-MMP','T:FIR-MMP')
+    title('SOCP')
 
+figure
+    bodeplot(S_all(13),opts);
+    hold on
+    bodeplot(T_all(13),opts);
+    legend('S:IIR-MMP','T:IIR-MMP')
+    title('SOCP')
+
+figure
+    bodeplot(S_all(7),opts);
+    hold on
+    bodeplot(T_all(7),opts);
+    legend('S:FIR-MMP','T:FIR-MMP')
+    title('SDP-IIR')
+
+figure
+    bodeplot(S_all(8),opts);
+    hold on
+    bodeplot(T_all(8),opts);
+    legend('S:IIR-MMP','T:IIR-MMP')
+    title('SDP-IIR')
+
+figure
+    bodeplot(T_all(13),opts);
+    hold on
+    bodeplot(Tinv(13),opts);
+    legend('T:IIR-MMP','Tinv:IIR-MMP')
+    title('SOCP')
 %% calculating max uncertainty allowed
 n_it = 13;
 h_inf = [];
