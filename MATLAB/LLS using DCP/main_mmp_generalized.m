@@ -881,7 +881,8 @@ for i = 1:13
     Tinv(i) = inv(T_all(i));
 end
 [mag, phi, ~] = bode(Tinv,w_in_rad);
-mag = 20*log10(squeeze(mag));
+mag = 20*log10(squeeze(mag)); % in dB
+% mag = squeeze(mag);
 phi = wrapTo180(squeeze(phi));
 
 figure
@@ -972,27 +973,27 @@ figure
         h(i).LineStyle = line_style{i};
         h(i).LineWidth = 1.5;
     end
-    x_line = xline(Nyq_Hz);
-    x_line.Color = [0 0 0];
-    x_line.LineWidth = 1.5;
-    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-    x_line.LabelOrientation = 'aligned';
-    x_line.LabelVerticalAlignment = 'bottom';
-    x_line.LabelHorizontalAlignment = 'center';
-    x_line.FontSize = 10;
-    x_line.FontWeight = 'bold';
-    for i = 1:m_d
-        x_line = xline(f_hz(i));
-        x_line.Color = [0 0 0];
-        x_line.LineWidth = 1;
-        x_line.Label = sprintf('%.f Hz',f_hz(i));
-        x_line.LabelOrientation = 'aligned';
-        x_line.LabelVerticalAlignment = 'bottom';
-        x_line.LabelHorizontalAlignment = 'center';
-        x_line.FontSize = 10;
-        x_line.FontWeight = 'bold';
-        x_line.LineStyle = '--';
-    end
+    % x_line = xline(Nyq_Hz);
+    % x_line.Color = [0 0 0];
+    % x_line.LineWidth = 1.5;
+    % x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    % x_line.LabelOrientation = 'aligned';
+    % x_line.LabelVerticalAlignment = 'bottom';
+    % x_line.LabelHorizontalAlignment = 'center';
+    % x_line.FontSize = 10;
+    % x_line.FontWeight = 'bold';
+    % for i = 1:m_d
+    %     x_line = xline(f_hz(i));
+    %     x_line.Color = [0 0 0];
+    %     x_line.LineWidth = 1;
+    %     x_line.Label = sprintf('%.f Hz',f_hz(i));
+    %     x_line.LabelOrientation = 'aligned';
+    %     x_line.LabelVerticalAlignment = 'bottom';
+    %     x_line.LabelHorizontalAlignment = 'center';
+    %     x_line.FontSize = 10;
+    %     x_line.FontWeight = 'bold';
+    %     x_line.LineStyle = '--';
+    % end
     hold off
     ax = gca;
     ax.FontSize= font_size;
@@ -1009,27 +1010,27 @@ figure
         h(i).LineStyle = line_style{i};
         h(i).LineWidth = 1.5;
     end
-    x_line = xline(Nyq_Hz);
-    x_line.Color = [0 0 0];
-    x_line.LineWidth = 1.5;
-    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
-    x_line.LabelOrientation = 'aligned';
-    x_line.LabelVerticalAlignment = 'bottom';
-    x_line.LabelHorizontalAlignment = 'center';
-    x_line.FontSize = 10;
-    x_line.FontWeight = 'bold';
-    for i = 1:m_d
-        x_line = xline(f_hz(i));
-        x_line.Color = [0 0 0];
-        x_line.LineWidth = 1;
-        x_line.Label = sprintf('%.f Hz',f_hz(i));
-        x_line.LabelOrientation = 'aligned';
-        x_line.LabelVerticalAlignment = 'bottom';
-        x_line.LabelHorizontalAlignment = 'center';
-        x_line.FontSize = 10;
-        x_line.FontWeight = 'bold';
-        x_line.LineStyle = '--';
-    end
+    % x_line = xline(Nyq_Hz);
+    % x_line.Color = [0 0 0];
+    % x_line.LineWidth = 1.5;
+    % x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    % x_line.LabelOrientation = 'aligned';
+    % x_line.LabelVerticalAlignment = 'bottom';
+    % x_line.LabelHorizontalAlignment = 'center';
+    % x_line.FontSize = 10;
+    % x_line.FontWeight = 'bold';
+    % for i = 1:m_d
+    %     x_line = xline(f_hz(i));
+    %     x_line.Color = [0 0 0];
+    %     x_line.LineWidth = 1;
+    %     x_line.Label = sprintf('%.f Hz',f_hz(i));
+    %     x_line.LabelOrientation = 'aligned';
+    %     x_line.LabelVerticalAlignment = 'bottom';
+    %     x_line.LabelHorizontalAlignment = 'center';
+    %     x_line.FontSize = 10;
+    %     x_line.FontWeight = 'bold';
+    %     x_line.LineStyle = '--';
+    % end
     hold off
     ax = gca;
     ax.FontSize= font_size;
@@ -1042,7 +1043,8 @@ figure
 
 % bode of T
 [mag, phi, ~] = bode(T_all,w_in_rad);
-mag = 20*log10(squeeze(mag));
+mag = 20*log10(squeeze(mag)); % in dB
+% mag = squeeze(mag); 
 phi = wrapTo180(squeeze(phi));
 figure
 hold on
@@ -1129,6 +1131,10 @@ h_inf_s = [];
 for i_it = 1:n_it
     h_inf_s(i_it) = hinfnorm(S_all(i_it));
 end
+
+fprintf('FIR min |1/T|: SOCP: %.2f, SDP:FIR %.2f, SDP:IIR %.2f\n', h_inf_db(n_fir));
+fprintf('IIR min |1/T|: SOCP: %.2f, SDP:FIR %.2f, SDP:IIR %.2f\n', h_inf_db(n_iir));
+
 %%
 % area
 n_it = 8;
