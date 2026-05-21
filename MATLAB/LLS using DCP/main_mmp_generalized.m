@@ -25,9 +25,7 @@ Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
 
 
 T_fs = 2.5e-5;
-Pz_delay = tf([0.0282, 0.1504, 0.1146], poly([0.99, 0.162+.7655*j, 0.1620-.7655*j, -0.0057]), T_fs);
-% Ps = d2c(Pz, 'Tustin')*exp(-0.01*s);
-% Pz_delay = c2d(Ps, T_fs, 'zoh');
+Pz_delay = tf([0.0282, 0.1504, 0.1146], [1, -1.3190, 0.9290, -0.6073, -0.0035], T_fs);
 z = tf('z',T_fs); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
@@ -40,11 +38,11 @@ T_cs = T_fs/D_L;
 batches = 1000*4; % the number of cycles 
 
 % m_d = 4; % number of disturbances
-max_order = 30; % max filter order
+max_order = 40; % max filter order
 max_amp = 1; % max disturb amplitude
 PQ_max = 6; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 400; % SOCP stop constraint past this frequency
+f_stop = 6000; % SOCP stop constraint past this frequency
 a_mmp = 0.90; % MMP alpha
 a_Q = 0.90; % QIIR alpha
 
@@ -60,22 +58,22 @@ Ts_CT_approx = T_cs/20; % approximating continuous time sys
 % spaced roughly equidistance. e.g. m_d = 3, L_t = 2. Will pick multiplier
 % between 1 and 2. 1st between 1-1.33, 2nd between 1.333-1.67, 3rd between
 % 1.67-2
-m_d = 4;
-tempW = zeros(1,m_d);
-for i = 1:(m_d) 
-    tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
-end
+% m_d = 4;
+% tempW = zeros(1,m_d);
+% for i = 1:(m_d) 
+%     tempW(i) = 1+rand(1)*((L_t-1)/m_d)+(i-1)*(L_t-1)/m_d; 
+% end
 
 % standardized test run
-% tempW = [1.1704, 1.5407, 1.8825, 2.1826];
-% p_off = [2.1226, 2.1966, 2.2855, 1.5029];
-% A_amp = [0.5548, 0.121, 0.4508, 0.7159];
-% m_d = size(tempW,2); % number of disturbances
+tempW = [1.1704, 1.5407, 1.8825, 2.1826];
+p_off = [2.1226, 2.1966, 2.2855, 1.5029];
+A_amp = [0.5548, 0.121, 0.4508, 0.7159];
+m_d = size(tempW,2); % number of disturbances
 
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
 f_hz = w_d/(2*pi*T_fs); % disturbance in Hz
-p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
-A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
+% p_off = rand(1,m_d)*pi; % random phase shift from 0 - 1
+% A_amp = rand(1,m_d)*max_amp; % random amplitude from 0 - max_ampl
 
 %% ============== Predictor Coefficients and TF, W_k ======================
 [mmp_fir_coeff] = w_coeff_fir(f_hz, T_fs, L_t); % predictor coefficients
