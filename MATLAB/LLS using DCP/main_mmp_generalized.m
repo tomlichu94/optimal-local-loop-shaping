@@ -416,7 +416,7 @@ Nyq_Hz = 1/(2*T_ss);
 w_start = 1; % starting frequency for x_lim
 l_width = 1.2; % linewidth
 font_size = 11; % font size
-x_lim_loop = [400 w_in_Hz_end]; % 1-PQ x_lim
+x_lim_loop = [1000 w_in_Hz_end]; % 1-PQ x_lim
 y_lim = [-50 20]; % y_lim
 
 % ==================== plotting style ==================================
@@ -991,22 +991,23 @@ figure
     % x_line.LabelHorizontalAlignment = 'center';
     % x_line.FontSize = 10;
     % x_line.FontWeight = 'bold';
-    % for i = 1:m_d
-    %     x_line = xline(f_hz(i));
-    %     x_line.Color = [0 0 0];
-    %     x_line.LineWidth = 1;
-    %     x_line.Label = sprintf('%.f Hz',f_hz(i));
-    %     x_line.LabelOrientation = 'aligned';
-    %     x_line.LabelVerticalAlignment = 'bottom';
-    %     x_line.LabelHorizontalAlignment = 'center';
-    %     x_line.FontSize = 10;
-    %     x_line.FontWeight = 'bold';
-    %     x_line.LineStyle = '--';
-    % end
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 11;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
     hold off
     ax = gca;
     ax.FontSize= font_size;
     xlim([1 w_in_Hz(end)])
+    ylim([-40 40])
     xlabel('Hz')
     ylabel('Magnitude (dB)')
     legend('SOCP','SDP:FIR','SDP:IIR','location','southeast')
@@ -1026,24 +1027,25 @@ figure
     % x_line.LabelOrientation = 'aligned';
     % x_line.LabelVerticalAlignment = 'bottom';
     % x_line.LabelHorizontalAlignment = 'center';
-    % x_line.FontSize = 10;
+    % x_line.FontSize = 11;
     % x_line.FontWeight = 'bold';
-    % for i = 1:m_d
-    %     x_line = xline(f_hz(i));
-    %     x_line.Color = [0 0 0];
-    %     x_line.LineWidth = 1;
-    %     x_line.Label = sprintf('%.f Hz',f_hz(i));
-    %     x_line.LabelOrientation = 'aligned';
-    %     x_line.LabelVerticalAlignment = 'bottom';
-    %     x_line.LabelHorizontalAlignment = 'center';
-    %     x_line.FontSize = 10;
-    %     x_line.FontWeight = 'bold';
-    %     x_line.LineStyle = '--';
-    % end
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'bottom';
+        x_line.LabelHorizontalAlignment = 'center';
+        x_line.FontSize = 11;
+        x_line.FontWeight = 'bold';
+        x_line.LineStyle = '--';
+    end
     hold off
     ax = gca;
     ax.FontSize= font_size;
     xlim([1 w_in_Hz(end)])
+    ylim([-40 40])
     xlabel('Hz')
     ylabel('Magnitude (dB)')
     legend('SOCP','SDP:FIR','SDP:IIR','location','southeast')
