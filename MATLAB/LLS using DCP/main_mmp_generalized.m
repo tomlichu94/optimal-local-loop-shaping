@@ -22,8 +22,6 @@ Ps = PlantData.Pn; % continuous-time plant
 Ps = tf(Ps); % define CT plnat as a transfer function
 Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
 
-
-
 T_fs = 2.5e-5;
 Pz_delay = tf([0.0282, 0.1504, 0.1146], [1, -1.3190, 0.9290, -0.6073, -0.0035], T_fs);
 z = tf('z',T_fs); % discrete time based on fast sampling
@@ -598,7 +596,7 @@ fprintf('RMS of Q-IIR, W-IIR: %d\n',rms(y3_fs(2,:)));
 % y3: Q_iir
 % y#(1,:):w_fir, y#(2,:):w_iir
 y_out_lim = [-10 10];
-x_lim = [0.18 0.188];
+x_lim = [0.18 0.181];
 size_mark = 6;
 l_width2 = 1;
 

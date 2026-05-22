@@ -20,7 +20,10 @@ PlantData.Tu = PlantData.Tu*Nx;
 T_fs = PlantData.Tu; % baseline plant sampling time
 Ps = PlantData.Pn; % continuous-time plant
 Ps = tf(Ps); % define CT plnat as a transfer function
-Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
+% Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
+
+T_fs = 2.5e-5;
+Pz_delay = tf([0.0282, 0.1504, 0.1146], [1, -1.3190, 0.9290, -0.6073, -0.0035], T_fs);
 z = tf('z',T_fs); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
@@ -33,7 +36,7 @@ T_ss = T_fs*L_t; % slow sampling time
 max_order = 40; % max filter order
 PQ_max = 6; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 400; % SOCP stop constraint past this frequency
+f_stop = 6000; % SOCP stop constraint past this frequency
 a_mmp = 0.90; % MMP alpha
 a_Q = [0 0.5 0.9 0.99];
 
@@ -47,7 +50,7 @@ w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
 f_hz = w_d/(2*pi*T_fs); % disturbance in Hz
 
 %% ============== discrete set of frequencies ==========================
-range_mult = 30;
+range_mult = 40;
 w_lin = w_lin_spacing(max_order,range_mult,tempW,L_t);
 w_lin_hz = w_lin/(2*pi*T_fs);
 stop_indx = find(w_lin_hz>f_stop);
@@ -63,9 +66,11 @@ Pz_den = cell2mat(Pz.den);
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%% Q Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generalized Q(z) form is: Q(z) = Q0*Q_FIR or Q0*Q_IIR
+Q0_num = [1];
+Q0_den = [1]; 
 %%%%% using Q0 = 1-z^-1
-Q0_num = [1 -1];
-Q0_den = [1 0]; 
+% Q0_num = [1 -1];
+% Q0_den = [1 0]; 
 Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
 % Q0_num = 1;
 % Q0_den = 1;
@@ -101,6 +106,7 @@ kp= 1/13320;
 ki= 1/33300;
 kd= 1/2775;
 Cz = k_c*(kp + ki/(z-1) + kd*(z-1)/z); % PID controller
+Cz = tf(1,1,T_fs);
 % check stability
 Tz = feedback(Pz*Cz,1);
 if isstable(Tz) == 1
@@ -263,7 +269,7 @@ w_in_Hz_end = 1/(2*T_fs); % end of plotting for Nyq freq of the fast
 w_in_Hz = 1:1:w_in_Hz_end;
 w_in_rad = w_in_Hz*2*pi;
 Nyq_Hz = 1/(2*T_ss);
-x_lim_loop = [800 w_lin_hz(end)]; % 1-PQ x_lim
+x_lim_loop = [7000 w_lin_hz(end)]; % 1-PQ x_lim
 font_size = 11; % font size
 y_lim = [-80 20]; % y_lim
 l_width = 1.3;

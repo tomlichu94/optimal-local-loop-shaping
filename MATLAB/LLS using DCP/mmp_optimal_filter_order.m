@@ -25,7 +25,7 @@ z = tf('z',Tu); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-L_t = 4; % sampling rate multilpier
+L_t = 5/2; % sampling rate multilpier
 k_t = L_t - 1;
 Ts = Tu*L_t; % slow sampling time
 max_order = [10 20 30 40 50 60 70 80 90]; % max filter order
@@ -33,7 +33,7 @@ max_amp = 1; % max disturb amplitude
 
 PQ_max = 3; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 600; % SOCP stop constraint past this frequency
+f_stop = 8000; % SOCP stop constraint past this frequency
 a_g_IIR = 0.95; % predictor alpha
 alpha = 0.95; % QIIR alpha
 
