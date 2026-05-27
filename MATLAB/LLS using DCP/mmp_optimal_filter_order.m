@@ -17,25 +17,30 @@ load mainPlantData;
 Nx = 10; % multiplier to increase sampling time
 PlantData.Ts = PlantData.Ts*Nx;
 PlantData.Tu = PlantData.Tu*Nx;
-Tu = PlantData.Tu; % baseline plant sampling time
+T_fs = PlantData.Tu; % baseline plant sampling time
 Ps = PlantData.Pn; % continuous-time plant
 Ps = tf(Ps); % define CT plnat as a transfer function
-Pz_delay = c2d(Ps,Tu,'zoh'); % discretize the plant
-z = tf('z',Tu); % discrete time based on fast sampling
+Pz_delay = c2d(Ps,T_fs,'zoh'); % discretize the plant
+
+T_fs = 2.5e-5;
+Pz_delay = tf([0.0282, 0.1504, 0.1146], [1, -1.3190, 0.9290, -0.6073, -0.0035], T_fs);
+z = tf('z',T_fs); % discrete time based on fast sampling
 s = tf('s'); % continous time
 
 %%%%%%%%%%%%%%%%%%%% input from the user %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 L_t = 5/2; % sampling rate multilpier
 k_t = L_t - 1;
-Ts = Tu*L_t; % slow sampling time
-max_order = [10 20 30 40 50 60 70 80 90]; % max filter order
+Ts = T_fs*L_t; % slow sampling time
+max_order = [12 20 30 40 50 60 70 80 90]; % max filter order
+% max_order = [12]; % max filter order
 max_amp = 1; % max disturb amplitude
 
-PQ_max = 3; % max value of PQ for the quadratic constraint
+% m_d = 4; % number of disturbances
+PQ_max = 10; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 8000; % SOCP stop constraint past this frequency
-a_g_IIR = 0.95; % predictor alpha
-alpha = 0.95; % QIIR alpha
+f_stop = 6000; % SOCP stop constraint past this frequency
+a_mmp = 0.90; % MMP alpha
+a_Q = 0.90; % QIIR alpha
 
 
 %%%%%%%%%%%%%%%%%%%% narrow-band disturbance frequency %%%%%%%%%%%%%%%%%%%%
@@ -53,48 +58,53 @@ tempW = [1.32 1.67 2.39 3.41];
 
 m_d = size(tempW,2); % number of disturbances
 w_d = tempW*pi/L_t; % fast measurement of disturbance in radians
-f_d = w_d/(2*pi*Tu); % disturbance in Hz
+f_hz = w_d/(2*pi*T_fs); % disturbance in Hz
 
 %% ============== Predictor Coefficients and TF, W_k ======================
-[w_k] = W_coeff_FIR(L_t,f_d,Tu); % predictor coefficients
-[w_k_IIR, B_para] = W_coeff_IIR(L_t,f_d,a_g_IIR,Tu);
-[W_FIR_num, W_FIR_den] = W_TF_FIR(w_k);
-[W_IIR_num, W_IIR_den] = W_TF_IIR(w_k_IIR,B_para);
+[mmp_fir_coeff] = w_coeff_fir(f_hz, T_fs, L_t); % predictor coefficients
+[mmp_iir_coeff, B_para] = w_coeff_iir(f_hz, T_fs, a_mmp, L_t);
+[w_fir_num, w_fir_den] = w_tf_fir(mmp_fir_coeff);
+[w_iir_num, w_iir_den] = w_tf_iir(mmp_iir_coeff,B_para);
 for k = 1:k_t
-    W_k_FIR(k) = tf(W_FIR_num(k,:),W_FIR_den(k,:),Tu);
-    W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),Tu);
+    w_k_fir(k) = tf(w_fir_num(k,:),w_fir_den(k,:),T_fs);
+    w_k_iir(k) = tf(w_iir_num(k,:),w_iir_den(k,:),T_fs);
 end
 
 %% ============== discrete set of frequencies ==========================
 for d = 1:length(max_order)
 range_mult = 30;
 w_lin = w_lin_spacing(max_order(d),range_mult,tempW,L_t);
-w_lin_Hz = w_lin/(2*pi*Tu);
+w_lin_Hz = w_lin/(2*pi*T_fs);
 stop_indx = find(w_lin_Hz>f_stop);
 stop_indx = stop_indx(1);
 fprintf('Stop Constraint %u Hz \n',w_lin_Hz(stop_indx))
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%% hdd model %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Ps_pade = pade(Ps,4); % pade approximation for delay term
-Ps_sys = ss(Ps_pade);
+% Ps_pade = pade(Ps,4); % pade approximation for delay term
+% Ps_sys = ss(Ps_pade);
 Pz = absorbDelay(Pz_delay);
 Pz_num = cell2mat(Pz.num);
 Pz_den = cell2mat(Pz.den);
 %% %%%%%%%%%%%%%%%%%%%%%%%%% Q Filter %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generalized Q(z) form is: Q(z) = Q0*Q_FIR or Q0*Q_IIR
+%%%%% using Q0 = 1
+Q0_num = [1];
+Q0_den = [1]; 
+Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
+
 %%%%% using Q0 = 1-z^-1
-Q0_num = [1 -1];
-Q0_den = [1 0]; 
-Q0 = tf(Q0_num,Q0_den,Tu); % Q0 = 1-z^-1 = (z-1)/z
-% Q0_num = 1;
-% Q0_den = 1;
+% Q0_num = [1 -1];
+% Q0_den = [1 0]; 
+% Q0 = tf(Q0_num,Q0_den,T_fs); % Q0 = 1-z^-1 = (z-1)/z
+
 %%%%% using Q0 = 1+z^-1
 % Q0_num = [1 -1];
 % Q1_num = [1 1];
 % Q0_den = [1 0]; 
 % Q2_num = conv(Q0_num,Q1_num);
 % Q2_den = conv(Q0_den,Q0_den);
-% Q0 = tf(Q2_num,Q2_den,Tu);
+% Q0 = tf(Q2_num,Q2_den,T_fs);
+
 %%%%% using Q0 from Automatica
 % rho = 0.8;
 % Q0_num = q0(w_d,rho);
@@ -110,7 +120,7 @@ for i = 1:max_order(d)
 end
 PQ0_num = conv(Pz_num,Q0_num);
 PQ0_den = conv(Pz_den,Q0_den);
-PQ0 = tf(PQ0_num,PQ0_den,Tu); % transfer function of Pz*Q0
+PQ0 = tf(PQ0_num,PQ0_den,T_fs); % transfer function of Pz*Q0
 P_phi = PQ0*phi;
 PQ_d = freqresp(P_phi,exp(1j*w_d)); % sub in disturbance vals into P_phi
 
@@ -119,7 +129,8 @@ k_c = 0.1;
 kp= 1/13320;
 ki= 1/33300;
 kd= 1/2775;
-Cz = k_c*(kp + ki/(z-1) + kd*(z-1)/z); % PID controller
+% Cz = k_c*(kp + ki/(z-1) + kd*(z-1)/z); % PID controller
+Cz = tf(1,1,T_fs);
 % check stability
 Tz = feedback(Pz*Cz,1);
 if isstable(Tz) == 1
@@ -130,6 +141,7 @@ else
 end
 
 %% Setting up variables for SDP
+q_sigma = (1e-8)*eye(max_order(d)+1);
 phi_val = freqresp(phi,exp(1j*w_lin(1:length(w_lin))));
 phi_val = squeeze(phi_val);
 phi_r = real(phi_val);
@@ -158,11 +170,11 @@ A_q(1:(end-1),2:end) = eye(max_order(d)-1,max_order(d)-1);
 B_q = zeros(max_order(d),1);
 B_q(end) = 1;
 %%%%%%%%%%%%%%%%%%%%%%%%%% IIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%
-[Fz_num, Fz_den] = F_notch(w_d,alpha);
-Fz = tf(Fz_num,Fz_den,Tu);
+[Fz_num, Fz_den] = F_notch(w_d,a_Q);
+Fz = tf(Fz_num,Fz_den,T_fs);
 H_num = conv(PQ0_num,(Fz_num-Fz_den)); % order from z^-6 z^-5 ... z^-1 1
 H_den = conv(PQ0_den,Fz_den); % order from z^6 z^5 ... z^1 1
-Hz = tf(H_num,H_den,Tu);
+Hz = tf(H_num,H_den,T_fs);
 k_iir = size(H_num,2);
 Hz_val = freqresp(Hz,exp(1j*w_lin(1:stop_indx)));
 Hz_2 = real(Hz_val).^2 + imag(Hz_val).^2;
@@ -192,7 +204,7 @@ B_k(end) = 1;
 M_size = size(A_p)+size(A_q);
 zero_mat = zeros(size(A_p,1),size(A_q,2));
 clear quad_q q
-cvx_begin sdp
+cvx_begin quiet sdp
         variables q((max_order(d)+1),1) rho
         variable M(M_size) symmetric
         C_q = [flip(q(2:end))]';
@@ -207,7 +219,7 @@ cvx_begin sdp
              B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
              zeros(1,M_size(1)), C_t, D_t, -rho]; 
         for i = 1:stop_indx
-             quad_q(i) = quad_form(q,quad(:,:,i));
+             quad_q(i) = quad_form(q,quad(:,:,i)+q_sigma);
         end
         minimize rho
         subject to
@@ -225,7 +237,7 @@ optval_fir(d) = cvx_optval;
 zero_mat = zeros(size(A_h,1),size(A_k,2));
 M_size = size(A_h)+size(A_k);
 clear rho M L_cvx quad_k
-cvx_begin sdp
+cvx_begin quiet sdp
         variables k((max_order(d)+1),1) rho
         variable M(M_size) symmetric
         C_k = [flip(k(2:end))]';
@@ -241,7 +253,7 @@ cvx_begin sdp
             B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
             zeros(1,M_size(1)), C_t, D_t, -rho];  
         for i = 1:stop_indx
-           quad_k(i) = quad_form(k,quad_IIR(:,:,i));
+           quad_k(i) = quad_form(k,quad_IIR(:,:,i)+q_sigma);
         end
         minimize rho 
         subject to

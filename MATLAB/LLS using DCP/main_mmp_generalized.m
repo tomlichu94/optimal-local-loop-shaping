@@ -84,7 +84,7 @@ for k = 1:k_t
 end
 
 %% ============== discrete set of frequencies ==========================
-range_mult = 40;
+range_mult = 30;
 w_lin = w_lin_spacing(max_order,range_mult,tempW,L_t);
 w_lin_Hz = w_lin/(2*pi*T_fs);
 stop_indx = find(w_lin_Hz>f_stop);
