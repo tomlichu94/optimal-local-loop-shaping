@@ -212,12 +212,14 @@ xlabel('Time (sec)')
 ylim([-2 2])
 
 % box chart error and RMS error
-rms_FIR = rms(err_FIR);
-rms_IIR = rms(err_IIR,2);
-err_all = [err_FIR;err_IIR]';
+t_end = length(y_norm_fs);
+t_steady = (1000:t_end);
+rms_FIR = rms(err_FIR(t_steady));
+rms_IIR = rms(err_IIR(:,t_steady),2);
+err_all = [err_FIR(t_steady);err_IIR(:,t_steady)]';
 rms_all = [rms_FIR;rms_IIR]';
-rms_FIR_clean = rms(err_FIR_clean);
-rms_IIR_clean = rms(err_IIR_clean);
+rms_FIR_noise_free = rms(err_FIR_clean(t_steady))
+rms_IIR_noise_free = rms(err_IIR_clean(t_steady))
 figure
 boxchart(err_all)
 xaxisproperties= get(gca, 'XAxis');
