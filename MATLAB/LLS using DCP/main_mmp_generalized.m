@@ -509,7 +509,7 @@ subplot(2,1,1)
     end
     hold off
 
-% ============================ 1-PQ plots ===========================
+    % ============================ 1-PQ plots ===========================
 subplot(2,1,2)
     h = semilogx(w_in_Hz,mag_T_bp,w_in_Hz,mag_T_socp, ...
                 w_in_Hz,mag_T_FIR,w_in_Hz,mag_T_IIR);
@@ -1168,3 +1168,103 @@ zeros_T = zero(T_all(n_it));
 zeros_T = abs(zeros_T(abs(zero(T_all(n_it)))>1));
 calc_zeros = 2*pi*sum(log(zeros_T));
 
+%%
+close all
+x_lim_loop = [800, w_in_Hz(end)];
+y_lim = [-100, 60];
+figure()
+subplot(2,1,1)
+    h = semilogx(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
+              w_in_Hz,mag_PQ_FIR,w_in_Hz,mag_PQ_IIR);
+    set(h,'linewidth',l_width);
+    hold on
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.LineStyle = '--';
+    end
+    xlim(x_lim_loop);
+    ylim(y_lim);
+    xlabel('Hz')
+    ylabel('dB')
+    title('Magnitude of PQ')
+    ax = gca;
+    ax.FontSize= font_size;
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    hold off
+
+    % ============================ 1-PQ plots ===========================
+    figure()
+subplot(2,1,1)
+    h = plot(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
+              w_in_Hz,mag_PQ_FIR,w_in_Hz,mag_PQ_IIR);
+    set(h,'linewidth',l_width);
+    hold on
+    x_line = xline(Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.FontSize = 10;
+    x_line.FontWeight = 'bold';
+    for i = 1:m_d
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.LineStyle = '--';
+    end
+    xlim(x_lim_loop);
+    ylim(y_lim);
+    xlabel('Hz')
+    ylabel('dB')
+    title('Magnitude of PQ')
+    ax = gca;
+    ax.FontSize= font_size;
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    hold off
+    subplot(2,1,2)
+    h = plot(w_in_Hz,mag_T_bp,w_in_Hz,mag_T_socp, ...
+                w_in_Hz,mag_T_FIR,w_in_Hz,mag_T_IIR);
+    set(h,'linewidth',l_width);
+    hold on
+    x_line = xline(Nyq_Hz);
+    x_line.Label = sprintf('%.f Hz',Nyq_Hz);
+    x_line.Color = [0 0 0];
+    x_line.LineWidth = 1.5;
+    x_line.FontWeight = 'bold';
+    x_line.LabelVerticalAlignment = 'bottom';
+    x_line.LabelHorizontalAlignment = 'left';
+    for i = 1:size(w_d,2)
+        x_line = xline(f_hz(i));
+        x_line.Color = [0 0 0];
+        x_line.LineWidth = 1;
+        x_line.Label = sprintf('%.f Hz',f_hz(i));
+        x_line.LabelHorizontalAlignment = 'left';
+        x_line.LabelOrientation = 'aligned';
+        x_line.LabelVerticalAlignment = 'Bottom';
+        x_line.FontSize = 10;
+        x_line.LineStyle = '--';
+        x_line.FontWeight = 'bold';
+    end
+    xlim(x_lim_loop);
+    ylim(y_lim);
+    xlabel('Hz')
+    ylabel('dB')
+    title('Magnitude 1-PQ')
+    ax = gca;
+    ax.FontSize= font_size;
+    for i = 1:n_all
+        h(i).Color = color_cvx{i};
+        h(i).LineStyle = line_style{i};
+    end
+    legend('Bandpass','SOCP:FIR', 'SDP:FIR','SDP:IIR','location','southwest')

@@ -59,8 +59,8 @@ y_iir_cs(1:D_L:end) = y_iir_1; % iir combined sampling
 y_iir_cs(2:D_L:end) = y_iir_2; 
 
 % plot of fast/slow sample with recovery 1 and 2, FIR
-x_lim = [16.12, 16.37];
-y_lim = [-2, 1.5];
+x_lim = [16.1, 16.2];
+y_lim = [-1.5, 1.5];
 figure
 s = stairs(t_lin_cs,y_norm_fs);
 s.Color = [0.4 0.4 0.4];
@@ -70,7 +70,7 @@ s = stairs(t_ss,y_norm_ss);
 s.LineWidth = 1;
 s.Color = [0 0 0.65];
 s.Marker = '*';
-s.MarkerSize = 7;
+s.MarkerSize = 9;
 s = stairs(t1,y_fir_1,'x');
 s.LineWidth = 0.8;
 s.MarkerSize = 8;
@@ -94,7 +94,7 @@ s = stairs(t_ss,y_norm_ss);
 s.LineWidth = 1;
 s.Color = [0 0 0.65];
 s.Marker = '*';
-s.MarkerSize = 7;
+s.MarkerSize = 9;
 s = stairs(t1,y_iir_1,'x');
 s.LineWidth = 0.8;
 s.MarkerSize = 8;
@@ -118,7 +118,7 @@ s = stairs(t_ss,y_norm_ss);
 s.LineWidth = 1;
 s.Color = [0 0 0.65];
 s.Marker = '*';
-s.MarkerSize = 7;
+s.MarkerSize = 10;
 s = stairs(t_lin_cs,y_fir_cs);
 s.LineWidth = 1;
 s.LineStyle = '-.';
@@ -139,38 +139,117 @@ xlabel('Time (sec)')
 xlim(x_lim)
 ylim(y_lim)
 
-%% offline recovery, with noise, requires data from previous runs
+%% offline recovery for fixed SNR and varying a_g
 % post processing data
 snr = 5; % signal to noise ratio
-y_fs_noisy = awgn(y_norm_fs,snr,'measured'); % create noise for data
-y_ss_noisy = y_fs_noisy(1:N_L:end); % slow sampled data
-y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, L);
+y_fs_noisy_fixed = awgn(y_norm_fs,snr,'measured'); % create noise for data
+y_ss_noisy_fixed = y_fs_noisy_fixed(1:N_L:end); % slow sampled data
+y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy_fixed, f_in, T_fs, T_fin, L);
 a_g = [0.3, 0.5, 0.9]; % alpha to adjust bandwidth of IIR-MMP
 length_cs = length(y_fir_noisy);
-y_iir_noisy = zeros(length(a_g),2,length_cs);
+y_iir_noisy_a_g = zeros(length(a_g),2,length_cs); % use y_iir_noisy_a_g to test varying a_g
 for i = 1:length(a_g)
-    y_iir_noisy(i,:,:) = multi_phase_recovery_iir(y_ss_noisy, f_in, T_fs, T_fin, a_g(i), L);
+    y_iir_noisy_a_g(i,:,:) = multi_phase_recovery_iir(y_ss_noisy_fixed, f_in, T_fs, T_fin, a_g(i), L);
 end
-y_iir_noisy = squeeze(y_iir_noisy(:,2,:));
+y_iir_noisy_a_g = squeeze(y_iir_noisy_a_g(:,2,:));
+
+%% varying a_g and snr
+snr = [0 3 5 10 15 20 25 30];
+vary_a_g = [0.3 0.5 0.9];
+Ntrial = 50;
+
+rng('default');
+rng(1,'twister');
+
+rms_FIR_trials = zeros(Ntrial, length(snr));
+rms_IIR_trials = zeros(Ntrial, length(snr), length(vary_a_g));
+
+for trial = 1:Ntrial
+    for i = 1:length(snr)
+
+        y_fs_noisy = awgn(y_norm_fs(:).', snr(i), 'measured');
+        y_ss_noisy = y_fs_noisy(1:N_L:end);
+
+        y_fir_tmp = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, L);
+        y_fir_tmp = squeeze(y_fir_tmp(2,:));
+
+        err_FIR = y_fir_tmp - y_norm_fs(:).';
+        err_FIR(1:N_L:end) = [];
+
+        t_inter = t_lin_cs(:).';
+        t_inter(1:N_L:end) = [];
+        idx_ss = t_inter >= 5;
+
+        rms_FIR_trials(trial,i) = rms(err_FIR(idx_ss));
+
+        for a = 1:length(vary_a_g)
+
+            y_iir_tmp = multi_phase_recovery_iir( ...
+                y_ss_noisy, f_in, T_fs, T_fin, vary_a_g(a), L);
+
+            y_iir_tmp = squeeze(y_iir_tmp(2,:));
+
+            err_IIR = y_iir_tmp - y_norm_fs(:).';
+            err_IIR(1:N_L:end) = [];
+
+            rms_IIR_trials(trial,i,a) = rms(err_IIR(idx_ss));
+        end
+    end
+end
+
+rms_FIR_mean = mean(rms_FIR_trials,1);
+rms_FIR_std  = std(rms_FIR_trials,0,1);
+
+rms_IIR_mean = squeeze(mean(rms_IIR_trials,1));  % SNR x alpha
+rms_IIR_std  = squeeze(std(rms_IIR_trials,0,1));
+
+figure; hold on; grid on;
+
+p = errorbar(snr, rms_FIR_mean, rms_FIR_std);
+p.LineStyle = '-';
+p.LineWidth = 1.3;
+p.Marker = 'x';
+p.MarkerSize = 4;
+p.CapSize = 8;
+
+markers = {'o','s','d'};
+
+for a = 1:length(vary_a_g)
+    p = errorbar(snr, rms_IIR_mean(:,a), rms_IIR_std(:,a));
+    p.LineStyle = '-';
+    p.LineWidth = 1.3;
+    p.Marker = markers{a};
+    p.MarkerSize = 4;
+    p.MarkerFaceColor = 'w';
+    p.CapSize = 8;
+end
+
+xlabel('SNR (dB)')
+ylabel('RMS reconstruction error')
+xlim([snr(1)-1, snr(end)+1])
+legend_entries = [{'W-FIR'}, ...
+    arrayfun(@(a) sprintf('W-IIR, \\alpha = %.1f', a), ...
+    vary_a_g, 'UniformOutput', false)];
+
+legend(legend_entries, 'Location', 'best')
 
 %% plotting online signal recovery
 % plot comparison of true encoder, noisy encoder, FIR, and IIR recovery
 figure
 s = stairs(t_encoder, y_norm_fs); % plot of true encoder
 s.Color = [0.4 0.4 0.4];
-s.LineWidth = 1;
+s.LineWidth = 1.2;
 hold on
-s = stairs(t_ss, y_ss_noisy); % plot of noisy encoder
-s.Marker = '*';
-s.LineWidth = 1;
-s.Color = [0 0 0.65];
+s = stairs(t_encoder, y_fs_noisy_fixed); % plot of noisy encoder
+s.LineWidth = 1.2;
+s.Color = [0.47,0.67,0.19];
 s = stairs(y_fir_noisy(1,:), y_fir_noisy(2,:)); % plot of FIR-MMP
 s.LineWidth = 1;
 s.LineStyle = '-.';
 s.Marker = 'x';
 s.MarkerSize = 8;
 s.Color = [0.9290 0.6940 0.1250];
-s = stairs(t_lin_cs, y_iir_noisy(3,:)); % plot of IIR-MMP
+s = stairs(t_lin_cs, y_iir_noisy_a_g(3,:)); % plot of IIR-MMP
 s.LineWidth = 1;
 s.Marker = 'o';
 s.MarkerSize = 7;
@@ -180,7 +259,8 @@ legend('True Signal','Noisy Signal','FIR MMP','IIR MMP','Location','southeast')
 ax = gca;
 ax.FontSize= 12;
 xlim(x_lim)
-ylim([-2.3, 1.5])
+% ylim([-1.7, 1.7])
+ylim(y_lim)
 xlabel('Time (sec)')
 ylabel('Normalized Encoder Count')
 hold off
@@ -190,7 +270,7 @@ hold off
 % remove matched measurements (i.e. d_fs[nL] = d_ss[n])
 % finding absolute error
 err_FIR = y_fir_noisy(2,:) - y_norm_fs;
-err_IIR = y_iir_noisy - y_norm_fs;
+err_IIR = y_iir_noisy_a_g - y_norm_fs;
 err_FIR_clean = y_fir_cs - y_norm_fs;
 err_IIR_clean = y_iir_cs - y_norm_fs;
 % plotting error
@@ -204,7 +284,7 @@ s.LineWidth = 1;
 s.Color = [1 0 0];
 s.LineStyle = ':';
 hold off
-legend('FIR MMP','IIR MMP','Location','northeast')
+legend('W-FIR','W-IIR','Location','northeast')
 ax = gca;
 ax.FontSize= 12;
 ylabel('Error')
@@ -213,13 +293,14 @@ ylim([-2 2])
 
 % box chart error and RMS error
 t_end = length(y_norm_fs);
-t_steady = (1000:t_end);
-rms_FIR = rms(err_FIR(t_steady));
-rms_IIR = rms(err_IIR(:,t_steady),2);
-err_all = [err_FIR(t_steady);err_IIR(:,t_steady)]';
+idx_ss = find(t_lin_cs >= 5);
+
+rms_FIR = rms(err_FIR(idx_ss));
+rms_IIR = rms(err_IIR(:,idx_ss),2);
+err_all = [err_FIR(idx_ss);err_IIR(:,idx_ss)]';
 rms_all = [rms_FIR;rms_IIR]';
-rms_FIR_noise_free = rms(err_FIR_clean(t_steady))
-rms_IIR_noise_free = rms(err_IIR_clean(t_steady))
+rms_FIR_noise_free = rms(err_FIR_clean(idx_ss))
+rms_IIR_noise_free = rms(err_IIR_clean(idx_ss))
 figure
 boxchart(err_all)
 xaxisproperties= get(gca, 'XAxis');
