@@ -178,7 +178,7 @@ for trial = 1:Ntrial
 
         t_inter = t_lin_cs(:).';
         t_inter(1:N_L:end) = [];
-        idx_ss = t_inter >= 5;
+        idx_ss = t_inter >= 4;
 
         rms_FIR_trials(trial,i) = rms(err_FIR(idx_ss));
 

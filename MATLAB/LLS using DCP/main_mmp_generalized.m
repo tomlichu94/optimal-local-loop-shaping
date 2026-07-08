@@ -38,9 +38,9 @@ batches = 1000*4; % the number of cycles
 % m_d = 4; % number of disturbances
 max_order = 40; % max filter order
 max_amp = 1; % max disturb amplitude
-PQ_max = 6; % max value of PQ for the quadratic constraint
+PQ_max = 2; % max value of PQ for the quadratic constraint
 beta = PQ_max^2; % FIR SDP, set max value for quad, play around with quadratic
-f_stop = 6000; % SOCP stop constraint past this frequency
+f_stop = 7000; % SOCP stop constraint past this frequency
 a_mmp = 0.90; % MMP alpha
 a_Q = 0.90; % QIIR alpha
 
@@ -184,6 +184,7 @@ cvx_begin quiet
             end
 cvx_end
 fprintf('SOCP: %s\n',cvx_status)
+socp_rho = cvx_optval;
 
 % filter
 Qcvx_num = conv(Q0_num,q_vec');
@@ -1156,53 +1157,38 @@ for i = 1:length(n_fir)
 end
 mag_dist
 
-%%
-% area
+%% checking bode's integral theorem
 n_it = 8;
-[mag, phi, ~] = bode(T_all(n_it),2 * w_in_rad);
-w_rad = 2 * w_in_rad * T_fs;
-mag = abs(log(squeeze(mag)));
-bode(T_all(n_it))
-calc_area = trapz(w_rad,mag);
-zeros_T = zero(T_all(n_it));
-zeros_T = abs(zeros_T(abs(zero(T_all(n_it)))>1));
-calc_zeros = 2*pi*sum(log(zeros_T));
+Omega = linspace(0, 2*pi, 50000);   % rad/sample
+w_bode = Omega / T_fs;              % rad/s for MATLAB bode
+[mag, ~] = bode(T_all(n_it), w_bode);
+mag = squeeze(mag);
+mag = max(mag, eps);
 
+calc_area = trapz(Omega, log(mag));
+
+z_T = zero(T_all(n_it));
+p_T = pole(T_all(n_it));
+
+z_out = z_T(abs(z_T) > 1);
+p_out = p_T(abs(p_T) > 1);
+
+calc_zeros = 2*pi*sum(log(abs(z_out)));
+calc_poles = 2*pi*sum(log(abs(p_out)));
+
+calc_area
+calc_zeros
+calc_poles
+
+figure
+plot(Omega, log(mag))
+grid on
+xlabel('\Omega (rad/sample)')
+ylabel('log |T(e^{j\Omega})|')
 %%
-close all
 x_lim_loop = [800, w_in_Hz(end)];
 y_lim = [-100, 60];
-figure()
-subplot(2,1,1)
-    h = semilogx(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
-              w_in_Hz,mag_PQ_FIR,w_in_Hz,mag_PQ_IIR);
-    set(h,'linewidth',l_width);
-    hold on
-    x_line = xline(Nyq_Hz);
-    x_line.Color = [0 0 0];
-    x_line.LineWidth = 1.5;
-    x_line.FontSize = 10;
-    x_line.FontWeight = 'bold';
-    for i = 1:m_d
-        x_line = xline(f_hz(i));
-        x_line.Color = [0 0 0];
-        x_line.LineWidth = 1;
-        x_line.LineStyle = '--';
-    end
-    xlim(x_lim_loop);
-    ylim(y_lim);
-    xlabel('Hz')
-    ylabel('dB')
-    title('Magnitude of PQ')
-    ax = gca;
-    ax.FontSize= font_size;
-    for i = 1:n_all
-        h(i).Color = color_cvx{i};
-        h(i).LineStyle = line_style{i};
-    end
-    hold off
-
-    % ============================ 1-PQ plots ===========================
+% ============================ PQ and  1-PQ plots ===========================
     figure()
 subplot(2,1,1)
     h = plot(w_in_Hz,mag_PQ_bp,w_in_Hz,mag_PQ_socp, ...
