@@ -134,7 +134,7 @@ ax = gca;
 ax.FontSize= 12;s.Color = [1 0 0];
 legend('Fast Sampled Signal','Slow Sampled Signal','FIR MMP','IIR MMP','location','best')
 hold off
-ylabel('Normalized Enconder Count')
+ylabel('Normalized Encoder Count')
 xlabel('Time (sec)')
 xlim(x_lim)
 ylim(y_lim)
