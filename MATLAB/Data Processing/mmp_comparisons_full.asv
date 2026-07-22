@@ -9,15 +9,14 @@ addpath('Functions')
 cfg.f_fs = 100;                 % Fast sampling frequency [Hz]
 cfg.L = 5;                      % Slow-to-fast sampling ratio
 cfg.t_end = 50;                 % Simulation duration [s]
-xlim_baseline = [40, 41];       % xlim plot for config plot
 
 % True signal model
 % cfg.f_true = [23, 27, 34];      % Physical frequencies [Hz]
 f_ss = cfg.f_fs/cfg.L;
 f_ny = f_ss/2;
-m_fig = 3; % number of disturbances for analysis
-m_sweep = 7; % sweep up to this final number of disturbances
-cfg.f_true = f_ny + (cfg.f_fs/2 - f_ny)*rand(1,m_fig);    % Physical frequencies [Hz]
+m = 3; % number of disturbances
+m_sweep = 7; % se
+cfg.f_true = rand(1,m)*f_ny;    % Physical frequencies [Hz]
 cfg.A0 = [1.0, 0.8, 0.6];       % Mean amplitudes
 cfg.mod_depth = [0.4, 0.3, 0.2];
 cfg.f_amp = [0.10, 0.20, 0.05]; % Amplitude modulation frequencies [Hz]
@@ -86,26 +85,26 @@ figure
 tiledlayout(2,1)
 
 nexttile
-stairs(t_plot, y_true, 'LineWidth', 1.2)
+plot(t_plot, y_true, 'LineWidth', 1.2)
 hold on
-stairs(t_plot, y_rls, '--', 'LineWidth', 1.2)
-stairs(t_plot, y_mmp, ':', 'LineWidth', 1.4)
+plot(t_plot, y_rls, '--', 'LineWidth', 1.2)
+plot(t_plot, y_mmp, ':', 'LineWidth', 1.4)
+grid on
 xline(cfg.t_eval_start, '--', 'Steady-state evaluation');
 xlabel('Time (s)')
 ylabel('Signal')
-xlim(xlim_baseline)
 legend('Ground truth', 'RLS', 'IIR-MMP', ...
     'Location', 'best')
 title('Baseline Reconstruction')
 
 nexttile
-stairs(t_plot, err_rls, 'LineWidth', 1.1)
+plot(t_plot, err_rls, 'LineWidth', 1.1)
 hold on
-stairs(t_plot, err_mmp, 'LineWidth', 1.1)
+plot(t_plot, err_mmp, 'LineWidth', 1.1)
+grid on
 xline(cfg.t_eval_start, '--', 'Steady-state evaluation');
 xlabel('Time (s)')
 ylabel('Reconstruction error')
-xlim(xlim_baseline)
 legend('RLS error', 'IIR-MMP error', ...
     'Location', 'best')
 title('Baseline Residuals')
@@ -154,6 +153,7 @@ hold on
 errorbar(delta_values, mean_delta_steady, std_delta_steady, ...
     's-', 'LineWidth', 1.2)
 set(gca, 'XScale', 'log')
+grid on
 xlabel('\delta')
 ylabel('RMSE')
 legend('Full-record RMSE', 'Steady-state RMSE', ...
@@ -171,7 +171,7 @@ fprintf('Selected delta: %.3g\n\n', cfg.delta)
 %  ================================================================
 
 lambda_values = [0.76, 0.8, 0.84, 0.87, 0.90, 0.92, 0.94, 0.96, 0.98, 0.99, 0.995, 1.0];
-alpha_values = [0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98];
+alpha_values = [0, 0.2, 0.4, 0.6, 0.7, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.93, 0.94, 0.95];
 
 rmse_lambda = nan(length(lambda_values), cfg.N_trials);
 rmse_alpha = nan(length(alpha_values), cfg.N_trials);
@@ -216,6 +216,7 @@ tiledlayout(1,2)
 nexttile
 errorbar(lambda_values, mean_lambda, std_lambda, ...
     'o-', 'LineWidth', 1.2)
+grid on
 xlabel('\lambda')
 ylabel('Steady-state RMSE')
 title('RLS Forgetting Factor')
@@ -223,6 +224,7 @@ title('RLS Forgetting Factor')
 nexttile
 errorbar(alpha_values, mean_alpha, std_alpha, ...
     'o-', 'LineWidth', 1.2)
+grid on
 xlabel('\alpha')
 ylabel('Steady-state RMSE')
 title('IIR-MMP Parameter')
@@ -287,11 +289,12 @@ errorbar(x_snr, mean_mmp_snr, std_mmp_snr, ...
 
 xticks(x_snr)
 xticklabels(compose('%g', SNR_values))
+grid on
 
 xlabel('SNR (dB)')
 ylabel('Steady-state RMSE')
 legend('RLS', 'IIR-MMP', 'Location', 'best')
-title('Noise Performance')
+title('Noise Robustness')
 
 
 %% ================================================================
@@ -342,6 +345,8 @@ errorbar(f_amp_values, mean_rls_famp, std_rls_famp, ...
 hold on
 errorbar(f_amp_values, mean_mmp_famp, std_mmp_famp, ...
     's-', 'LineWidth', 1.2)
+grid on
+
 xlabel('Base amplitude-modulation frequency (Hz)')
 ylabel('Steady-state RMSE')
 legend('RLS', 'IIR-MMP', 'Location', 'best')
@@ -409,11 +414,12 @@ hold on
 errorbar(frequency_error_values, ...
     mean_mmp_mismatch, std_mmp_mismatch, ...
     's-', 'LineWidth', 1.2)
+grid on
 
 xlabel('Frequency-model error (Hz)')
 ylabel('Steady-state RMSE')
 legend('RLS', 'IIR-MMP', 'Location', 'best')
-title('Frequency Modeling Error')
+title('Sensitivity to Frequency-Model Error')
 
 
 %% ================================================================
@@ -423,8 +429,7 @@ title('Frequency Modeling Error')
 number_frequency_values = 1:m_sweep;
 
 % These frequencies have distinct aliases at f_ss = 20 Hz.
-% frequency_bank = ceil(f_ss+1):floor(cfg.f_fs/2-1);
-frequency_bank = f_ny + (cfg.f_fs/2 - f_ny)*rand(1,m_sweep);
+frequency_bank = ceil(f_ss+1):floor(cfg.f_fs/2-1);
 
 rmse_rls_num_freq = ...
     nan(length(number_frequency_values), cfg.N_trials);
@@ -494,15 +499,17 @@ hold on
 errorbar(number_frequency_values, ...
     mean_mmp_num_freq, std_mmp_num_freq, ...
     's-', 'LineWidth', 1.2)
+grid on
 
 xlabel('Number of frequency components')
 ylabel('Steady-state RMSE')
 legend('RLS', 'IIR-MMP', 'Location', 'best')
-title('Number of Unique Frequencies')
+title('Effect of Signal Complexity')
 
 figure
 semilogy(number_frequency_values, ...
     regressor_condition, 'o-', 'LineWidth', 1.2)
+grid on
 
 xlabel('Number of frequency components')
 ylabel('Condition number of \Phi')

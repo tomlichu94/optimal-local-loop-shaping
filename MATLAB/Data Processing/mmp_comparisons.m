@@ -18,9 +18,9 @@ t_end = 20;
 f_sample = [23, 29, 33];
 a_g = 0.9;
 mem_length = length(f_sample)*4; % need this many for mmp
-% lambda = 1-1/mem_length;
-lambda = 0.9;
-mem_length = 1/(1-lambda);
+lambda = 1-1/mem_length;
+% lambda = 0.9;
+% mem_length = 1/(1-lambda);
 snr = 5;
 delta = 1;
 
