@@ -131,8 +131,9 @@ s.Marker = 'o';
 s.MarkerSize = 7;
 s.LineStyle = ':';
 ax = gca;
-ax.FontSize= 12;s.Color = [1 0 0];
-legend('Fast Sampled Signal','Slow Sampled Signal','FIR MMP','IIR MMP','location','best')
+ax.FontSize= 12;
+s.Color = [1 0 0];
+legend('Fast sampled signal','Slow sampled signal','W-FIR','W-IIR','location','best')
 hold off
 ylabel('Normalized Encoder Count')
 xlabel('Time (sec)')
@@ -240,9 +241,11 @@ s = stairs(t_encoder, y_norm_fs); % plot of true encoder
 s.Color = [0.4 0.4 0.4];
 s.LineWidth = 1.2;
 hold on
-s = stairs(t_encoder, y_fs_noisy_fixed); % plot of noisy encoder
-s.LineWidth = 1.2;
-s.Color = [0.47,0.67,0.19];
+% s = stairs(t_encoder, y_fs_noisy_fixed); % plot of noisy encoder
+s = stairs(t_ss, y_ss_noisy); % plot of slow-sampled input
+s.LineWidth = 1;
+s.Color = [0 0 0.65];
+s.Marker = '*';
 s = stairs(y_fir_noisy(1,:), y_fir_noisy(2,:)); % plot of FIR-MMP
 s.LineWidth = 1;
 s.LineStyle = '-.';
@@ -255,7 +258,7 @@ s.Marker = 'o';
 s.MarkerSize = 7;
 s.Color = [1 0 0];
 s.LineStyle = ':';
-legend('True Signal','Noisy Signal','FIR MMP','IIR MMP','Location','southeast')
+legend('True fast sampled signal','Slow sampled noisy signal','W-FIR','W-IIR','Location','southeast')
 ax = gca;
 ax.FontSize= 12;
 xlim(x_lim)

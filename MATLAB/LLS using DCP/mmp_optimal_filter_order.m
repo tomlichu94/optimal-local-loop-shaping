@@ -32,7 +32,6 @@ L_t = 5/2; % sampling rate multilpier
 k_t = L_t - 1;
 Ts = T_fs*L_t; % slow sampling time
 max_order = [12 20 30 40 50 60 70 80 90]; % max filter order
-% max_order = [12]; % max filter order
 max_amp = 1; % max disturb amplitude
 
 % m_d = 4; % number of disturbances
@@ -154,122 +153,156 @@ for i = 1:length(w_lin)
     quad(:,:,i) = Pz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
                   Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
 end
+%% SOCP implementation
+%%%%%%%%%%%%%%%%%%%% Quad implementation for PQ %%%%%%%%%%%%%%%%%%%%%%%%%%%
+q_sigma = (1e-8)*eye(max_order(d)+1);
+phi_val = freqresp(phi,exp(1j*w_lin(1:length(w_lin))));
+phi_val = squeeze(phi_val);
+phi_r = real(phi_val);
+phi_i = -imag(phi_val);
+Pz_val = freqresp(PQ0,exp(1j*w_lin(1:length(w_lin))));
+Pz_val = squeeze(Pz_val)';
+Pz_2 = real(Pz_val).^2 + imag(Pz_val).^2;
+quad = zeros(max_order(d)+1,max_order(d)+1,length(w_lin));
+for i = 1:length(w_lin)
+    quad(:,:,i) = Pz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
+                      Pz_2(i)*phi_i(:,i)*phi_i(:,i)';
+end
+clear quad_q q q_vec b
+cvx_begin quiet
+        variables q_vec((max_order(d)+1),1) b(length(w_lin),1)
+        beta_sum = sum(b);
+        for i = 1:length(w_lin)
+           quad_q(i) = quad_form(q_vec,(quad(:,:,i)+q_sigma));
+        end
+        minimize beta_sum
+        subject to
+            for i = 1:m_d
+               1-PQ_d(1,:,i)*q_vec == 0;
+            end            
+            for i = 1:length(w_lin)
+                quad_q(i) <= b(i)
+            end
+cvx_end
+fprintf('SOCP: %s\n',cvx_status)
+socp_rho(d) = cvx_optval;
+
 %%%%%%%%%%%%%%%%%%%%%%%%% FIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%%
 % state space realization of P(z)
-k_fir = size(PQ0_den,2);
-A_p = zeros(k_fir-1,k_fir-1);
-A_p(1:end-1,2:end) = eye(k_fir-2);
-A_p(end,:) = -flip(PQ0_den(2:end));
-B_p = zeros(k_fir-1,1);
-B_p(end) = 1;
-C_p = flip(PQ0_num(2:end));
-D_p = PQ0_num(1);
-% bounded real lemma setup
-A_q = zeros(max_order(d),max_order(d));
-A_q(1:(end-1),2:end) = eye(max_order(d)-1,max_order(d)-1);
-B_q = zeros(max_order(d),1);
-B_q(end) = 1;
-%%%%%%%%%%%%%%%%%%%%%%%%%% IIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%
-[Fz_num, Fz_den] = F_notch(w_d,a_Q);
-Fz = tf(Fz_num,Fz_den,T_fs);
-H_num = conv(PQ0_num,(Fz_num-Fz_den)); % order from z^-6 z^-5 ... z^-1 1
-H_den = conv(PQ0_den,Fz_den); % order from z^6 z^5 ... z^1 1
-Hz = tf(H_num,H_den,T_fs);
-k_iir = size(H_num,2);
-Hz_val = freqresp(Hz,exp(1j*w_lin(1:stop_indx)));
-Hz_2 = real(Hz_val).^2 + imag(Hz_val).^2;
-quad_IIR = zeros(max_order(d)+1,max_order(d)+1,stop_indx);
-for i = 1:stop_indx
-    quad_IIR(:,:,i) = Hz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
-                      Hz_2(i)*phi_i(:,i)*phi_i(:,i)';
-end
-% state space realization of H(z)
-A_h = zeros(k_iir-1,k_iir-1);
-A_h(1:end-1,2:end) = eye(k_iir-2);
-A_h(end,:) = -flip(H_den(2:end));
-C_h = flip(H_num(2:end));
-B_h = zeros(k_iir-1,1);
-B_h(end) = 1;
-D_h = [H_num(1)];
-Hz_phi = Hz*phi;
-HK_d = freqresp(Hz_phi,exp(1j*w_d));
-% bounded real lemma setup
-A_k = zeros(max_order(d),max_order(d));
-A_k(1:(end-1),2:end) = eye(max_order(d)-1,max_order(d)-1);
-B_k = zeros(max_order(d),1);
-B_k(end) = 1;
+% k_fir = size(PQ0_den,2);
+% A_p = zeros(k_fir-1,k_fir-1);
+% A_p(1:end-1,2:end) = eye(k_fir-2);
+% A_p(end,:) = -flip(PQ0_den(2:end));
+% B_p = zeros(k_fir-1,1);
+% B_p(end) = 1;
+% C_p = flip(PQ0_num(2:end));
+% D_p = PQ0_num(1);
+% % bounded real lemma setup
+% A_q = zeros(max_order(d),max_order(d));
+% A_q(1:(end-1),2:end) = eye(max_order(d)-1,max_order(d)-1);
+% B_q = zeros(max_order(d),1);
+% B_q(end) = 1;
+% %%%%%%%%%%%%%%%%%%%%%%%%%% IIR implementation %%%%%%%%%%%%%%%%%%%%%%%%%%
+% [Fz_num, Fz_den] = F_notch(w_d,a_Q);
+% Fz = tf(Fz_num,Fz_den,T_fs);
+% H_num = conv(PQ0_num,(Fz_num-Fz_den)); % order from z^-6 z^-5 ... z^-1 1
+% H_den = conv(PQ0_den,Fz_den); % order from z^6 z^5 ... z^1 1
+% Hz = tf(H_num,H_den,T_fs);
+% k_iir = size(H_num,2);
+% Hz_val = freqresp(Hz,exp(1j*w_lin(1:stop_indx)));
+% Hz_2 = real(Hz_val).^2 + imag(Hz_val).^2;
+% quad_IIR = zeros(max_order(d)+1,max_order(d)+1,stop_indx);
+% for i = 1:stop_indx
+%     quad_IIR(:,:,i) = Hz_2(i)*phi_r(:,i)*phi_r(:,i)'+...
+%                       Hz_2(i)*phi_i(:,i)*phi_i(:,i)';
+% end
+% % state space realization of H(z)
+% A_h = zeros(k_iir-1,k_iir-1);
+% A_h(1:end-1,2:end) = eye(k_iir-2);
+% A_h(end,:) = -flip(H_den(2:end));
+% C_h = flip(H_num(2:end));
+% B_h = zeros(k_iir-1,1);
+% B_h(end) = 1;
+% D_h = [H_num(1)];
+% Hz_phi = Hz*phi;
+% HK_d = freqresp(Hz_phi,exp(1j*w_d));
+% % bounded real lemma setup
+% A_k = zeros(max_order(d),max_order(d));
+% A_k(1:(end-1),2:end) = eye(max_order(d)-1,max_order(d)-1);
+% B_k = zeros(max_order(d),1);
+% B_k(end) = 1;
 
-%% for loop starts here
-%% QFIR SDP implementation
-M_size = size(A_p)+size(A_q);
-zero_mat = zeros(size(A_p,1),size(A_q,2));
-clear quad_q q
-cvx_begin quiet sdp
-        variables q((max_order(d)+1),1) rho
-        variable M(M_size) symmetric
-        C_q = [flip(q(2:end))]';
-        D_q = [q(1)];
-        A_t = [A_p zero_mat; B_q*C_p A_q];
-        B_t = [B_p; B_q*D_p];
-        %%%% 1-PQ formulation
-        C_t = -[D_q*C_p, C_q];
-        D_t = 1-D_q*D_p;
-        L_cvx = [M, M*A_t, M*B_t, zeros(M_size(1),1);...
-             A_t'*M, M, zeros(M_size(1),1), C_t';...
-             B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
-             zeros(1,M_size(1)), C_t, D_t, -rho]; 
-        for i = 1:stop_indx
-             quad_q(i) = quad_form(q,quad(:,:,i)+q_sigma);
-        end
-        minimize rho
-        subject to
-            for i = 1:m_d
-               1-PQ_d(1,:,i)*q == 0;
-            end
-            for i = 1:stop_indx
-                quad_q(i) <= beta
-            end
-            L_cvx <= 0;
-            rho >= 0;
-cvx_end
-optval_fir(d) = cvx_optval;
-%% QIIR SDP implementation
-zero_mat = zeros(size(A_h,1),size(A_k,2));
-M_size = size(A_h)+size(A_k);
-clear rho M L_cvx quad_k
-cvx_begin quiet sdp
-        variables k((max_order(d)+1),1) rho
-        variable M(M_size) symmetric
-        C_k = [flip(k(2:end))]';
-        D_k = [k(1)];
-        A_t = [A_h zero_mat; B_k*C_h A_k];
-        B_t = [B_h; B_k*D_h];
-        %%%%% 1+HK %%%%%%%%%%%
-        C_t = [D_k*C_h, C_k];
-        D_t = D_k*D_h+1;
-        %%%%% HK formulation, where HK = -PQ
-        L_cvx = [M, M*A_t, M*B_t, zeros(M_size(1),1);... 
-            A_t'*M, M, zeros(M_size(1),1), C_t';...
-            B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
-            zeros(1,M_size(1)), C_t, D_t, -rho];  
-        for i = 1:stop_indx
-           quad_k(i) = quad_form(k,quad_IIR(:,:,i)+q_sigma);
-        end
-        minimize rho 
-        subject to
-            for i = 1:m_d
-               1+HK_d(1,:,i)*k == 0
-            end
-            for i = 1:stop_indx
-                quad_k(i) <= beta;
-            end
-            L_cvx<=0;
-            rho >= 0;
-cvx_end
-optval_iir(d) = cvx_optval;
+% %% for loop starts here
+% %% QFIR SDP implementation
+% M_size = size(A_p)+size(A_q);
+% zero_mat = zeros(size(A_p,1),size(A_q,2));
+% clear quad_q q
+% cvx_begin quiet sdp
+%         variables q((max_order(d)+1),1) rho
+%         variable M(M_size) symmetric
+%         C_q = [flip(q(2:end))]';
+%         D_q = [q(1)];
+%         A_t = [A_p zero_mat; B_q*C_p A_q];
+%         B_t = [B_p; B_q*D_p];
+%         %%%% 1-PQ formulation
+%         C_t = -[D_q*C_p, C_q];
+%         D_t = 1-D_q*D_p;
+%         L_cvx = [M, M*A_t, M*B_t, zeros(M_size(1),1);...
+%              A_t'*M, M, zeros(M_size(1),1), C_t';...
+%              B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
+%              zeros(1,M_size(1)), C_t, D_t, -rho]; 
+%         for i = 1:stop_indx
+%              quad_q(i) = quad_form(q,quad(:,:,i)+q_sigma);
+%         end
+%         minimize rho
+%         subject to
+%             for i = 1:m_d
+%                1-PQ_d(1,:,i)*q == 0;
+%             end
+%             for i = 1:stop_indx
+%                 quad_q(i) <= beta
+%             end
+%             L_cvx <= 0;
+%             rho >= 0;
+% cvx_end
+% optval_fir(d) = cvx_optval;
+% %% QIIR SDP implementation
+% zero_mat = zeros(size(A_h,1),size(A_k,2));
+% M_size = size(A_h)+size(A_k);
+% clear rho M L_cvx quad_k
+% cvx_begin quiet sdp
+%         variables k((max_order(d)+1),1) rho
+%         variable M(M_size) symmetric
+%         C_k = [flip(k(2:end))]';
+%         D_k = [k(1)];
+%         A_t = [A_h zero_mat; B_k*C_h A_k];
+%         B_t = [B_h; B_k*D_h];
+%         %%%%% 1+HK %%%%%%%%%%%
+%         C_t = [D_k*C_h, C_k];
+%         D_t = D_k*D_h+1;
+%         %%%%% HK formulation, where HK = -PQ
+%         L_cvx = [M, M*A_t, M*B_t, zeros(M_size(1),1);... 
+%             A_t'*M, M, zeros(M_size(1),1), C_t';...
+%             B_t'*M, zeros(1,M_size(1)), -rho, D_t';...
+%             zeros(1,M_size(1)), C_t, D_t, -rho];  
+%         for i = 1:stop_indx
+%            quad_k(i) = quad_form(k,quad_IIR(:,:,i)+q_sigma);
+%         end
+%         minimize rho 
+%         subject to
+%             for i = 1:m_d
+%                1+HK_d(1,:,i)*k == 0
+%             end
+%             for i = 1:stop_indx
+%                 quad_k(i) <= beta;
+%             end
+%             L_cvx<=0;
+%             rho >= 0;
+% cvx_end
+% optval_iir(d) = cvx_optval;
 disp(max_order(d))
 end
-
+% 
 %% plotting
 color_cvx = {[0 0.4470 0.7410],[0.6350 0.0780 0.1840]};
 marker_style = {'o','square'};
@@ -286,4 +319,17 @@ for i = 1:2
 end
 legend('SDP:FIR','SDP:IIR')
 ylabel('|H|_\infty')
+xlabel('Filter Order')
+
+%%
+% plotting socp optval
+marker_style = {'o'};
+lwidth = 1.5;
+figure
+p = plot(max_order,socp_rho);
+p.LineWidth = lwidth;
+p.Marker = marker_style{1};
+p.MarkerSize = 8;
+legend('SOCP')
+ylabel('\epislon')
 xlabel('Filter Order')
