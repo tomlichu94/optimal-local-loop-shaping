@@ -1,41 +1,67 @@
-close all
-clear
-clc
-%% model parameters
-% DC motor from MinSegMotor
-% sampled at 250 Hz
-% input is 3.9V with a sin wave at 8 Hz.
-% Fast sampling here defined at 250 Hz, slow sampling at 50 Hz
-addpath('Functions')
+%% Fractional signal reconstruction from Simulink data
+close all;
+clearvars;
+clc;
+
+script_dir = fileparts(mfilename('fullpath'));
+addpath(fullfile(script_dir, 'Functions'));
+
+%% Model parameters
+% DC motor data sampled at 100 Hz with a 7 Hz sinusoidal input.
 Fs = 100;
-T_fs = 1/Fs;
+T_fs = 1 / Fs;
 T_fin = 20;
-a_g = 0.5;
-L = 25/2;
+L = 25 / 2;
 [N_L, D_L] = rat(L);
-T_ss = T_fs*L;
-T_cs = T_fs/D_L;
-f_ny = 1/(2*T_ss);
+T_ss = T_fs * L;
+f_ny = 1 / (2 * T_ss);
 f_d = 7;
 f_in = 7;
-[wk_iir B_para] = w_kiir_frac(f_d, T_fs, a_g, L);
-[wk_fir] = w_kfir_frac(f_d, T_fs, L);
 
-%% online recovery, no noise. Run hardware, then export the data exporting data
-addpath('Experimental Runs\Fractional Recovery')
-load run_1.mat
-y_encoder = squeeze(out_encoder.signals.values)';
-y_encoder = double(y_encoder);
-t_encoder = out_encoder.time';
-t_lin_cs = out_W1.time';
-t_ss = squeeze(in_W.time)';
-d_ss = squeeze(in_W.signals.values)'; % slow sampled signal
-peak_mean_fs = mean(findpeaks(y_encoder(2:end))); % find average peak value
-peak_mean_ss = mean(findpeaks(d_ss(2:end)));
+% The recorded model contains two interleaved recovery channels.
+assert(D_L == 2, ...
+    'This script expects a reconstruction factor with denominator 2.');
+
+%% Online recovery without noise
+run_file = fullfile(script_dir, 'Experimental Runs', ...
+    'Fractional Recovery', 'run_1.mat');
+assert(isfile(run_file), 'Data file not found: %s', run_file);
+run_data = load(run_file);
+
+required_fields = {'out_encoder', 'out_W1', 'out_W2', 'in_W'};
+assert(all(isfield(run_data, required_fields)), ...
+    'The run file does not contain all required Simulink outputs.');
+
+out_encoder = run_data.out_encoder;
+out_W1 = run_data.out_W1;
+out_W2 = run_data.out_W2;
+in_W = run_data.in_W;
+
+y_encoder = double(squeeze(out_encoder.signals.values)).';
+t_encoder = squeeze(out_encoder.time).';
+t_lin_cs = squeeze(out_W1.time).';
+t_ss = squeeze(in_W.time).';
+d_ss = squeeze(in_W.signals.values).';
+
+encoder_peaks = findpeaks(y_encoder(2:end));
+slow_peaks = findpeaks(d_ss(2:end));
+assert(~isempty(encoder_peaks) && ~isempty(slow_peaks), ...
+    'Peak-based normalization requires peaks in both input signals.');
+peak_mean_fs = mean(encoder_peaks);
+peak_mean_ss = mean(slow_peaks);
+assert(all(isfinite([peak_mean_fs, peak_mean_ss])) && ...
+    all([peak_mean_fs, peak_mean_ss] ~= 0), ...
+    'Peak normalization values must be finite and nonzero.');
+
 y_norm_fs = y_encoder/peak_mean_fs;
 y_norm_ss = d_ss/peak_mean_ss;
-y_w1 = out_W1.signals.values'/peak_mean_fs; % normalized
-y_w2 = out_W2.signals.values'/peak_mean_fs; % normalized
+y_w1 = squeeze(out_W1.signals.values).'/peak_mean_fs;
+y_w2 = squeeze(out_W2.signals.values).'/peak_mean_fs;
+
+assert(numel(t_lin_cs) == numel(y_norm_fs), ...
+    'The combined time vector and encoder signal must have equal lengths.');
+assert(size(y_w1, 1) >= 2 && size(y_w2, 1) >= 2, ...
+    'Each recovery output must contain FIR and IIR channels.');
 
 %% plotting
 close all
@@ -108,13 +134,167 @@ title('Fractional Signal Recovery - IIR')
 xlim(x_lim)
 ylim(y_lim)
 
+%% Offline recovery for fixed SNR and varying alpha
+fixed_snr_db = 5;
+y_fs_noisy_fixed = awgn(y_norm_fs, fixed_snr_db, 'measured');
+y_ss_noisy_fixed = y_fs_noisy_fixed(1:N_L:end);
+y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy_fixed, f_in, T_fs, T_fin, L);
+alpha_values = [0.3, 0.5, 0.9];
+y_iir_noisy_a_g = zeros(numel(alpha_values), size(y_fir_noisy, 2));
+for alpha_idx = 1:numel(alpha_values)
+    recovery = multi_phase_recovery_iir(y_ss_noisy_fixed, f_in, ...
+        T_fs, T_fin, alpha_values(alpha_idx), L);
+    y_iir_noisy_a_g(alpha_idx, :) = recovery(2, :);
+end
+
+assert(size(y_fir_noisy, 2) == numel(y_norm_fs), ...
+    'Offline recovery and reference signal lengths do not match.');
+
+%% Monte Carlo reconstruction error versus SNR and alpha
+snr_db_values = [0, 3, 5, 10, 15, 20, 25, 30];
+Ntrial = 50;
+
+rng('default');
+rng(1,'twister');
+
+rms_FIR_trials = zeros(Ntrial, numel(snr_db_values));
+rms_IIR_trials = zeros(Ntrial, numel(snr_db_values), ...
+    numel(alpha_values));
+
+% Evaluate only reconstructed intersamples after the startup transient.
+evaluation_mask = true(size(y_norm_fs));
+evaluation_mask(1:N_L:end) = false;
+evaluation_mask = evaluation_mask & (t_lin_cs >= 4);
+
+for trial = 1:Ntrial
+    for snr_idx = 1:numel(snr_db_values)
+
+        y_fs_noisy = awgn(y_norm_fs, snr_db_values(snr_idx), 'measured');
+        y_ss_noisy = y_fs_noisy(1:N_L:end);
+
+        y_fir_tmp = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, L);
+        y_fir_tmp = squeeze(y_fir_tmp(2,:));
+
+        err_FIR = y_fir_tmp - y_norm_fs;
+        rms_FIR_trials(trial, snr_idx) = rms(err_FIR(evaluation_mask));
+
+        for alpha_idx = 1:numel(alpha_values)
+
+            y_iir_tmp = multi_phase_recovery_iir( ...
+                y_ss_noisy, f_in, T_fs, T_fin, ...
+                alpha_values(alpha_idx), L);
+
+            y_iir_tmp = squeeze(y_iir_tmp(2,:));
+
+            err_IIR = y_iir_tmp - y_norm_fs;
+            rms_IIR_trials(trial, snr_idx, alpha_idx) = ...
+                rms(err_IIR(evaluation_mask));
+        end
+    end
+end
+
+rms_FIR_mean = mean(rms_FIR_trials,1);
+rms_FIR_std  = std(rms_FIR_trials,0,1);
+
+rms_IIR_mean = squeeze(mean(rms_IIR_trials,1));  % SNR x alpha
+rms_IIR_std  = squeeze(std(rms_IIR_trials,0,1));
+
+figure; hold on; grid on;
+
+p = errorbar(snr_db_values, rms_FIR_mean, rms_FIR_std);
+p.LineStyle = '-';
+p.LineWidth = 1.3;
+p.Marker = 'x';
+p.MarkerSize = 4;
+p.CapSize = 8;
+
+markers = {'o','s','d'};
+
+for alpha_idx = 1:numel(alpha_values)
+    p = errorbar(snr_db_values, rms_IIR_mean(:, alpha_idx), ...
+        rms_IIR_std(:, alpha_idx));
+    p.LineStyle = '-';
+    p.LineWidth = 1.3;
+    p.Marker = markers{alpha_idx};
+    p.MarkerSize = 4;
+    p.MarkerFaceColor = 'w';
+    p.CapSize = 8;
+end
+
+xlabel('SNR (dB)')
+ylabel('RMS reconstruction error')
+xlim([snr_db_values(1)-1, snr_db_values(end)+1])
+legend_entries = [{'W-FIR'}, ...
+    arrayfun(@(alpha) sprintf('W-IIR, \\alpha = %.1f', alpha), ...
+    alpha_values, 'UniformOutput', false)];
+
+legend(legend_entries, 'Location', 'best')
+
+%% plotting for signal outputs
 % plot of fast/slow sample with combined sampling, FIR and IIR
+% first five seconds
+x_lim = [0, 5];
+y_lim = [-2, 2];
 figure
 s = stairs(t_lin_cs,y_norm_fs);
 s.Color = [0.4 0.4 0.4];
 s.LineWidth = 1;
 hold on
-s = stairs(t_ss,y_norm_ss);
+s = stairs(t_ss(2:end),y_norm_ss(1:end-1));
+s.LineWidth = 1;
+s.Color = [0 0 0.65];
+s = stairs(t_lin_cs,y_fir_cs);
+s.LineWidth = 1;
+s.LineStyle = '-.';
+s.Color = [0.9290 0.6940 0.1250];
+s = stairs(t_lin_cs,y_iir_cs);
+s.LineWidth = 1;
+s.LineStyle = ':';
+ax = gca;
+ax.FontSize= 12;
+s.Color = [1 0 0];
+legend('Fast sampled signal','Slow sampled signal','W-FIR','W-IIR','location','best')
+hold off
+ylabel('Normalized Encoder Count')
+xlabel('Time (sec)')
+xlim(x_lim)
+ylim(y_lim)
+
+% offline plot comparison of true encoder, noisy encoder, FIR, and IIR recovery
+figure
+s = stairs(t_encoder, y_norm_fs); % plot of true encoder
+s.Color = [0.4 0.4 0.4];
+s.LineWidth = 1.2;
+hold on
+s = stairs(t_ss, y_ss_noisy_fixed); % plot of slow-sampled input
+s.LineWidth = 1;
+s.Color = [0 0 0.65];
+s = stairs(y_fir_noisy(1,:), y_fir_noisy(2,:)); % plot of FIR-MMP
+s.LineWidth = 1;
+s.LineStyle = '-.';
+s.Color = [0.9290 0.6940 0.1250];
+s = stairs(t_lin_cs, y_iir_noisy_a_g(3,:)); % plot of IIR-MMP
+s.LineWidth = 1;
+s.Color = [1 0 0];
+s.LineStyle = ':';
+legend('True fast sampled signal','Slow sampled noisy signal','W-FIR','W-IIR','Location','southeast')
+ax = gca;
+ax.FontSize= 12;
+xlim(x_lim)
+ylim(y_lim)
+xlabel('Time (sec)')
+ylabel('Normalized Encoder Count')
+hold off
+
+% small window during transient
+x_lim = [15.7, 16.2];
+y_lim = [-2, 2];
+figure
+s = stairs(t_lin_cs,y_norm_fs);
+s.Color = [0.4 0.4 0.4];
+s.LineWidth = 1;
+hold on
+s = stairs(t_ss(2:end),y_norm_ss(1:end-1));
 s.LineWidth = 1;
 s.Color = [0 0 0.65];
 s.Marker = '*';
@@ -140,112 +320,17 @@ xlabel('Time (sec)')
 xlim(x_lim)
 ylim(y_lim)
 
-%% offline recovery for fixed SNR and varying a_g
-% post processing data
-snr = 5; % signal to noise ratio
-y_fs_noisy_fixed = awgn(y_norm_fs,snr,'measured'); % create noise for data
-y_ss_noisy_fixed = y_fs_noisy_fixed(1:N_L:end); % slow sampled data
-y_fir_noisy = multi_phase_recovery_fir(y_ss_noisy_fixed, f_in, T_fs, T_fin, L);
-a_g = [0.3, 0.5, 0.9]; % alpha to adjust bandwidth of IIR-MMP
-length_cs = length(y_fir_noisy);
-y_iir_noisy_a_g = zeros(length(a_g),2,length_cs); % use y_iir_noisy_a_g to test varying a_g
-for i = 1:length(a_g)
-    y_iir_noisy_a_g(i,:,:) = multi_phase_recovery_iir(y_ss_noisy_fixed, f_in, T_fs, T_fin, a_g(i), L);
-end
-y_iir_noisy_a_g = squeeze(y_iir_noisy_a_g(:,2,:));
-
-%% varying a_g and snr
-snr = [0 3 5 10 15 20 25 30];
-vary_a_g = [0.3 0.5 0.9];
-Ntrial = 50;
-
-rng('default');
-rng(1,'twister');
-
-rms_FIR_trials = zeros(Ntrial, length(snr));
-rms_IIR_trials = zeros(Ntrial, length(snr), length(vary_a_g));
-
-for trial = 1:Ntrial
-    for i = 1:length(snr)
-
-        y_fs_noisy = awgn(y_norm_fs(:).', snr(i), 'measured');
-        y_ss_noisy = y_fs_noisy(1:N_L:end);
-
-        y_fir_tmp = multi_phase_recovery_fir(y_ss_noisy, f_in, T_fs, T_fin, L);
-        y_fir_tmp = squeeze(y_fir_tmp(2,:));
-
-        err_FIR = y_fir_tmp - y_norm_fs(:).';
-        err_FIR(1:N_L:end) = [];
-
-        t_inter = t_lin_cs(:).';
-        t_inter(1:N_L:end) = [];
-        idx_ss = t_inter >= 4;
-
-        rms_FIR_trials(trial,i) = rms(err_FIR(idx_ss));
-
-        for a = 1:length(vary_a_g)
-
-            y_iir_tmp = multi_phase_recovery_iir( ...
-                y_ss_noisy, f_in, T_fs, T_fin, vary_a_g(a), L);
-
-            y_iir_tmp = squeeze(y_iir_tmp(2,:));
-
-            err_IIR = y_iir_tmp - y_norm_fs(:).';
-            err_IIR(1:N_L:end) = [];
-
-            rms_IIR_trials(trial,i,a) = rms(err_IIR(idx_ss));
-        end
-    end
-end
-
-rms_FIR_mean = mean(rms_FIR_trials,1);
-rms_FIR_std  = std(rms_FIR_trials,0,1);
-
-rms_IIR_mean = squeeze(mean(rms_IIR_trials,1));  % SNR x alpha
-rms_IIR_std  = squeeze(std(rms_IIR_trials,0,1));
-
-figure; hold on; grid on;
-
-p = errorbar(snr, rms_FIR_mean, rms_FIR_std);
-p.LineStyle = '-';
-p.LineWidth = 1.3;
-p.Marker = 'x';
-p.MarkerSize = 4;
-p.CapSize = 8;
-
-markers = {'o','s','d'};
-
-for a = 1:length(vary_a_g)
-    p = errorbar(snr, rms_IIR_mean(:,a), rms_IIR_std(:,a));
-    p.LineStyle = '-';
-    p.LineWidth = 1.3;
-    p.Marker = markers{a};
-    p.MarkerSize = 4;
-    p.MarkerFaceColor = 'w';
-    p.CapSize = 8;
-end
-
-xlabel('SNR (dB)')
-ylabel('RMS reconstruction error')
-xlim([snr(1)-1, snr(end)+1])
-legend_entries = [{'W-FIR'}, ...
-    arrayfun(@(a) sprintf('W-IIR, \\alpha = %.1f', a), ...
-    vary_a_g, 'UniformOutput', false)];
-
-legend(legend_entries, 'Location', 'best')
-
-%% plotting online signal recovery
-% plot comparison of true encoder, noisy encoder, FIR, and IIR recovery
+% offline plot comparison of true encoder, noisy encoder, FIR, and IIR recovery
 figure
 s = stairs(t_encoder, y_norm_fs); % plot of true encoder
 s.Color = [0.4 0.4 0.4];
 s.LineWidth = 1.2;
 hold on
-% s = stairs(t_encoder, y_fs_noisy_fixed); % plot of noisy encoder
-s = stairs(t_ss, y_ss_noisy); % plot of slow-sampled input
+s = stairs(t_ss, y_ss_noisy_fixed); % plot of slow-sampled input
 s.LineWidth = 1;
 s.Color = [0 0 0.65];
 s.Marker = '*';
+s.MarkerSize = 10;
 s = stairs(y_fir_noisy(1,:), y_fir_noisy(2,:)); % plot of FIR-MMP
 s.LineWidth = 1;
 s.LineStyle = '-.';
@@ -262,7 +347,6 @@ legend('True fast sampled signal','Slow sampled noisy signal','W-FIR','W-IIR','L
 ax = gca;
 ax.FontSize= 12;
 xlim(x_lim)
-% ylim([-1.7, 1.7])
 ylim(y_lim)
 xlabel('Time (sec)')
 ylabel('Normalized Encoder Count')
@@ -295,18 +379,19 @@ xlabel('Time (sec)')
 ylim([-2 2])
 
 % box chart error and RMS error
-t_end = length(y_norm_fs);
 idx_ss = find(t_lin_cs >= 5);
 
 rms_FIR = rms(err_FIR(idx_ss));
 rms_IIR = rms(err_IIR(:,idx_ss),2);
 err_all = [err_FIR(idx_ss);err_IIR(:,idx_ss)]';
 rms_all = [rms_FIR;rms_IIR]';
-rms_FIR_noise_free = rms(err_FIR_clean(idx_ss))
-rms_IIR_noise_free = rms(err_IIR_clean(idx_ss))
+rms_FIR_noise_free = rms(err_FIR_clean(idx_ss));
+rms_IIR_noise_free = rms(err_IIR_clean(idx_ss));
+fprintf('Noise-free online RMS error (FIR): %.6f\n', rms_FIR_noise_free);
+fprintf('Noise-free online RMS error (IIR): %.6f\n', rms_IIR_noise_free);
 figure
 boxchart(err_all)
-xaxisproperties= get(gca, 'XAxis');
+xaxisproperties = get(gca, 'XAxis');
 xaxisproperties.TickLabelInterpreter = 'latex'; % latex for x-axis
 xticklabels({'FIR','$\alpha = 0.3$','$\alpha = 0.5$','$\alpha = 0.9$'})
 hold on
@@ -322,6 +407,7 @@ legend('','RMS Error')
 ylabel('Error')
 
 % bode plot options and setup
+wk_fir = w_kfir_frac(f_in, T_fs, L);
 k_tot = 1:(N_L-1); % index of intersample points
 color_all = {[0 0 0], [0.9290 0.6940 0.1250], [0 1 0], [1 0 0]};
 line_style = {'-','--','--','-.',':'};
@@ -342,6 +428,7 @@ phi_W_FIR = wrapTo180(phi_W_FIR(:));
 
 % plot FIR Bode plot
 figure
+h = gobjects(1, numel(alpha_values) + 1);
 h(1) = plot(w_in_Hz,mag_W_FIR);
 hold on
 h(1).Color = color_all{1};
@@ -350,14 +437,17 @@ h(1).LineWidth = 1.5;
 xlabel('Hz')
 ylabel('Magnitude (dB)')
 xlim(x_lim_PQ)
-wk_iir = zeros(length(a_g),size(wk_fir,1),size(wk_fir,2));
+wk_iir = zeros(numel(alpha_values), size(wk_fir, 1), size(wk_fir, 2));
+B_para_all = cell(1, numel(alpha_values));
 
 % IIR bode plot options
-for i = 1:length(a_g)
-    [wk_iir(i,:,:), B_para] = w_kiir_frac(f_in, T_fs, a_g(i), L); % iir coeff
-    [W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(i,:,:)),B_para);
+for i = 1:numel(alpha_values)
+    [wk_iir(i,:,:), B_para_all{i}] = w_kiir_frac( ...
+        f_in, T_fs, alpha_values(i), L);
+    [W_IIR_num, W_IIR_den] = w_tf_iir( ...
+        squeeze(wk_iir(i,:,:)), B_para_all{i});
     W_k_IIR = tf(W_IIR_num(k_idx,:),W_IIR_den(k_idx,:),T_fs); % IIR TF for k=1
-    [mag_W_IIR, phi_W_IIR, w_out] = bode(W_k_IIR,w_in_rad); % IIR mag/deg vals
+    mag_W_IIR = bode(W_k_IIR, w_in_rad);
     mag_W_IIR = 20*log10(mag_W_IIR(:));
     h(i+1) = plot(w_in_Hz,mag_W_IIR);
     h(i+1).Color = color_all{i+1};
@@ -366,29 +456,26 @@ for i = 1:length(a_g)
 end
 Legend_bode = cell(1,5);
 Legend_bode{1} = strcat('FIR');
-for iter=1:length(a_g)
-  Legend_bode{iter+1}=strcat('\alpha =', num2str(a_g(iter)));
+for iter = 1:numel(alpha_values)
+  Legend_bode{iter+1} = strcat('\alpha =', num2str(alpha_values(iter)));
 end
 Legend_bode{5}='k = 2,...24';
 % plotting IIR-MMP Bode for k = 2...L-1
 k_length = k_tot(end);
 % plotting intersamples of IIR-MMP for a = 0.9
-[W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(3,:,:)),B_para); % IIR TF coeff
-for k = 1:k_length
-        W_k_IIR(k) = tf(W_IIR_num(k,:),W_IIR_den(k,:),T_fs);
-        [mag_W_IIR, phi_W_IIR, w_out] = bode(W_k_IIR(k),w_in_rad);
+[W_IIR_num, W_IIR_den] = w_tf_iir( ...
+    squeeze(wk_iir(3,:,:)), B_para_all{3});
+for k = 2:k_length
+        W_k_IIR = tf(W_IIR_num(k,:), W_IIR_den(k,:), T_fs);
+        mag_W_IIR = bode(W_k_IIR, w_in_rad);
         mag_W_IIR = 20*log10(mag_W_IIR(:));
-        phi_W_IIR = wrapTo180(phi_W_IIR(:));
-        h(k) = plot(w_in_Hz,mag_W_IIR);
-        h(k).Color = [0.3 0.3 0.3];
-        h(k).LineStyle = ':';
-        h(k).LineWidth = 1.15;
-        xlabel('Hz')
-        ylabel('Magnitude (dB)')
-        xlim(x_lim_PQ)
+        gray_line = plot(w_in_Hz, mag_W_IIR);
+        gray_line.Color = [0.3 0.3 0.3];
+        gray_line.LineStyle = ':';
+        gray_line.LineWidth = 1.15;
 end
 % plot disturbance frequency line
-for i = 1:width(f_d)
+for i = 1:numel(f_d)
     x_line = xline_default(f_d(i));
     x_line.Color = [0 0 0];
     x_line.LineWidth = 1;
@@ -410,31 +497,20 @@ xlim([0,20])
 figure
 W_k_IIR = tf(1,W_IIR_den(k_idx,:),T_fs); % IIR-MMP TF poles only
 pzmap(W_k_IIR,'k') % map of IIR-MMP poles
-a = findobj(gca,'type','line');
-for i = 1:length(a)
-    set(a(i),'markersize',8)
-    set(a(i),'linewidth',1.5)
-end
 hold on
-for i = 1:length(a_g)
-    [W_IIR_num, W_IIR_den] = w_tf_iir(squeeze(wk_iir(i,:,:)),B_para);
-    for k = 1:k_length
-    W_k_IIR(i,k) = tf(W_IIR_num(k,:),1,T_fs); % IIR-MMP TF zeros only
-    end
-end
 
 % range of zeros to plot
 iter_zeros = 3:9:k_length;
+[W_IIR_num, ~] = w_tf_iir(squeeze(wk_iir(3,:,:)), B_para_all{3});
 for k = iter_zeros
-    pzmap(W_k_IIR(3,k)) % plot zeros
-    for i = 1:length(a)
-    a = findobj(gca,'type','line');
-    set(a(i),'markersize',8)
-    set(a(i),'linewidth',1.5)
-    end
+    zero_system = tf(W_IIR_num(k,:), 1, T_fs);
+    pzmap(zero_system)
 end
+pole_zero_lines = findobj(gca, 'Type', 'line');
+set(pole_zero_lines, 'MarkerSize', 8, 'LineWidth', 1.5);
 Legend_pz = cell(1,length(iter_zeros)+1);
-Legend_pz{1} = strcat('Poles (\alpha = ',num2str(a_g(3)),')');
+Legend_pz{1} = strcat('Poles (\alpha = ', ...
+    num2str(alpha_values(3)), ')');
 n_leg = 2;
 for iter=iter_zeros
   Legend_pz{n_leg}=strcat('k = ', num2str(k_tot(iter)));
@@ -444,38 +520,23 @@ legend(Legend_pz,'Location','Best')
 
 % pzmap plot of FIR and IIR poles only
 figure
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(1), L); % coefficients for IIR-MMP
-[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-[~, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
-pzmap(W_k_IIR,'k') % map of IIR-MMP poles
-a = findobj(gca,'type','line');
-    for i = 1:length(a)
-        set(a(i),'markersize',8)
-        set(a(i),'linewidth',1.5)
-    end
 hold on
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(2), L); % coefficients for IIR-MMP
-[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-[~, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
-pzmap(W_k_IIR,'b') % map of IIR-MMP poles
-a = findobj(gca,'type','line');
-    for i = 1:length(a)
-        set(a(i),'markersize',8)
-        set(a(i),'linewidth',1.5)
-    end
-[wk_iir, B_para] = w_kiir_frac(f_in, T_fs, a_g(3), L); % coefficients for IIR-MMP
-[W_IIR_num, W_IIR_den] = w_tf_iir(wk_iir,B_para);
-W_k_IIR = tf(1,W_IIR_den(1,:),T_fs); % IIR-MMP TF poles only
-pzmap(W_k_IIR,'r') % map of IIR-MMP poles
-a = findobj(gca,'type','line');
-    for i = 1:length(a)
-        set(a(i),'markersize',8)
-        set(a(i),'linewidth',1.5)
-    end
-Legend_pz = cell(1,3);
-for iter=1:3
-Legend_pz{iter} = strcat('Poles (\alpha = ',num2str(a_g(iter)),')');
+pole_colors = {'k', 'b', 'r'};
+for alpha_idx = 1:numel(alpha_values)
+    W_k_IIR = tf(1, W_IIR_den_for_alpha( ...
+        wk_iir, B_para_all, alpha_idx, k_idx), T_fs);
+    pzmap(W_k_IIR, pole_colors{alpha_idx})
 end
+hold off
+pole_zero_lines = findobj(gca, 'Type', 'line');
+set(pole_zero_lines, 'MarkerSize', 8, 'LineWidth', 1.5);
+Legend_pz = arrayfun(@(alpha) sprintf('Poles (\\alpha = %.1f)', alpha), ...
+    alpha_values, 'UniformOutput', false);
 legend(Legend_pz,'Location','Best')
+
+function denominator = W_IIR_den_for_alpha( ...
+        wk_iir, B_para_all, alpha_idx, k_idx)
+    [~, all_denominators] = w_tf_iir( ...
+        squeeze(wk_iir(alpha_idx, :, :)), B_para_all{alpha_idx});
+    denominator = all_denominators(k_idx, :);
+end
